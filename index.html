@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>IOL Titles — Social Card Studio</title>
+  <link rel="icon" href="logos/capeargus.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css?v=20260711"/>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-inner">
+      <div class="hdr-brand">
+        <div class="hdr-mark">IOL</div>
+        <div class="hdr-text">
+          <span class="hdr-title">Titles</span>
+          <span class="hdr-sub">Social Card Studio</span>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+        <span class="feed-status" id="feed-status"></span>
+        <button class="icon-btn" id="refresh-btn" title="Refresh feed">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.22-3.65L9 7h6V1l-1.35 1.35Z" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- PUBLICATION PICKER -->
+  <div class="filter-bar">
+    <div class="filter-inner">
+      <div class="pub-pills" id="pub-pills"><!-- built by app.js --></div>
+    </div>
+  </div>
+
+  <!-- SEARCH BAR -->
+  <div class="search-bar" id="search-bar">
+    <div class="search-inner">
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input class="search-input" id="search-input" type="text" placeholder="Search this title's stories…" autocomplete="off" spellcheck="false"/>
+      <button class="search-clear" id="search-clear" title="Clear search">✕</button>
+      <button class="from-url-btn" id="from-url-toggle" title="Create card from any IOL article URL">＋ From URL</button>
+    </div>
+    <!-- From URL panel -->
+    <div class="from-url-panel" id="from-url-panel" style="display:none">
+      <div class="search-inner from-url-inner">
+        <input class="ctrl-input from-url-input" id="from-url-input" type="url" placeholder="Paste any IOL article URL…" autocomplete="off"/>
+        <button class="ai-gen-btn from-url-go" id="from-url-go">Build Card</button>
+        <span class="from-url-status" id="from-url-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <main class="feed">
+    <div class="grid" id="stories-grid">
+      <div class="grid-loading"><div class="spinner"></div><p>Loading latest stories…</p></div>
+    </div>
+    <div class="load-more-row" id="load-more-row" style="display:none">
+      <button class="load-more-btn" id="load-more-btn">Load more</button>
+    </div>
+  </main>
+
+  <!-- ═══ CARD DESIGNER OVERLAY ═══ -->
+  <div class="designer" id="designer">
+    <div class="designer-inner">
+
+      <!-- Nav bar -->
+      <div class="dnav">
+        <button class="back-btn" id="back-btn">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 4L6 9L11 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Back
+        </button>
+        <div class="dnav-title" id="dnav-title"></div>
+        <div class="dnav-actions">
+          <button class="btn-dl" id="btn-dl-sq">⬇ Square</button>
+          <button class="btn-dl" id="btn-dl-reel">⬇ Reel</button>
+          <button class="btn-dl btn-dl-both" id="btn-dl-all" style="display:none">⬇ All Slides</button>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="dbody">
+
+        <!-- ── LEFT: Dual preview ── -->
+        <div class="canvas-area">
+
+          <!-- Card type toggle -->
+          <div class="type-toggle" id="type-toggle">
+            <button class="tt-btn active" data-type="single">Single</button>
+            <button class="tt-btn" data-type="carousel">Carousel</button>
+            <button class="tt-btn" data-type="infographic">Infographic</button>
+          </div>
+
+          <!-- DUAL CANVAS ROW -->
+          <div class="dual-canvas-row">
+            <!-- Square 1:1 -->
+            <div class="canvas-col-wrap">
+              <div class="canvas-label">Square · 1080×1080</div>
+              <div class="canvas-frame canvas-frame-sq">
+                <canvas id="card-canvas-sq" title="Drag · Scroll to zoom"></canvas>
+              </div>
+            </div>
+            <!-- Reel 9:16 -->
+            <div class="canvas-col-wrap">
+              <div class="canvas-label">Reel / Story · 1080×1920</div>
+              <div class="canvas-frame canvas-frame-reel">
+                <canvas id="card-canvas-reel" title="Scroll to zoom"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Image toolbar -->
+          <div class="img-toolbar">
+            <span class="itb-label">Image</span>
+            <button class="itb-btn" id="itb-zoom-in">+</button>
+            <button class="itb-btn" id="itb-zoom-out">−</button>
+            <button class="itb-btn" id="itb-reset">⊙</button>
+            <div class="itb-sep"></div>
+            <span class="itb-hint">Drag square canvas · Scroll to zoom</span>
+          </div>
+
+          <!-- Carousel bar -->
+          <div class="carousel-bar" id="carousel-bar" style="display:none">
+            <span class="cb-indicator" id="c-indicator"></span>
+            <div class="cb-actions">
+              <button class="cb-btn cb-add" id="c-add">+ Add page</button>
+              <button class="cb-btn" id="c-del">✕ Delete page</button>
+            </div>
+          </div>
+          <div class="carousel-pages" id="carousel-pages" style="display:none"></div>
+
+          <!-- Infographic editor -->
+          <div class="info-editor" id="info-editor" style="display:none">
+            <div class="ctrl-label">Infographic key points</div>
+            <button class="ai-gen-btn" id="info-gen">✨ Generate with AI</button>
+            <div class="info-hint" id="info-hint">One point per line · 3–4 works best</div>
+            <textarea class="ctrl-input info-points" id="info-points" rows="6" placeholder="Type key points here, one per line — or tap Generate with AI"></textarea>
+            <div class="ctrl-label" style="margin-top:10px">Source line</div>
+            <input class="ctrl-input" id="info-source" placeholder="e.g. Reporter name"/>
+          </div>
+        </div>
+
+        <!-- ── RIGHT: Controls ── -->
+        <div class="controls">
+
+          <div class="ctrl-block">
+            <div class="ctrl-label">Publication</div>
+            <select class="ctrl-select" id="ctrl-pub"><!-- built by app.js --></select>
+          </div>
+
+          <div class="ctrl-block">
+            <div class="ctrl-label">Kicker <span class="ctrl-sub">Red label pill · editable</span></div>
+            <div class="color-input-row">
+              <input class="ctrl-input" id="ctrl-kicker" type="text" maxlength="42" placeholder="e.g. CRIME IN FOCUS"/>
+              <label class="color-swatch-wrap" title="Kicker text colour">
+                <input type="color" id="ctrl-kicker-color" value="#FFFFFF" class="color-picker"/>
+                <span class="color-swatch" id="kicker-swatch" style="background:#ffffff"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctrl-block">
+            <label class="breaking-toggle" for="ctrl-breaking">
+              <input type="checkbox" id="ctrl-breaking"/>
+              <span class="breaking-toggle-text">🔴 Breaking News banner</span>
+            </label>
+          </div>
+
+          <div class="ctrl-block">
+            <div class="ctrl-label">Headline <span class="ctrl-sub">Wrap words in *asterisks* to colour them</span></div>
+            <div class="color-input-row color-input-row--top">
+              <textarea class="ctrl-ta" id="ctrl-headline" rows="3" placeholder="Story headline…"></textarea>
+              <label class="color-swatch-wrap" title="Headline base text colour">
+                <input type="color" id="ctrl-hl-color" value="#FFFFFF" class="color-picker"/>
+                <span class="color-swatch" id="hl-swatch" style="background:#ffffff"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="ctrl-block">
+            <label class="upper-toggle" for="ctrl-upper">
+              <input type="checkbox" id="ctrl-upper" checked/>
+              <span class="upper-toggle-text">Uppercase headline (Cape Argus style)</span>
+            </label>
+          </div>
+
+          <div class="ctrl-block">
+            <div class="ctrl-label">Text Position <span class="ctrl-sub">Square card</span></div>
+            <div class="pos-grid" id="pos-grid">
+              <button class="pos-btn" data-pos="top">↑ Top</button>
+              <button class="pos-btn" data-pos="mid">● Middle</button>
+              <button class="pos-btn active" data-pos="bot">↓ Bottom</button>
+            </div>
+          </div>
+
+          <div class="ctrl-block">
+            <div class="ctrl-label">Text Position <span class="ctrl-sub">Reel / Story</span></div>
+            <div class="pos-grid" id="reel-pos-grid">
+              <button class="pos-btn" data-pos="top">↑ Top</button>
+              <button class="pos-btn" data-pos="mid">● Middle</button>
+              <button class="pos-btn active" data-pos="bot">↓ Bottom</button>
+            </div>
+          </div>
+
+          <div class="ctrl-block">
+            <div class="ctrl-label">Story Image URL</div>
+            <div class="img-url-row">
+              <input class="ctrl-input" id="ctrl-imgurl" placeholder="https://iol-prod.appspot.com/image/…"/>
+              <button class="reload-btn" id="ctrl-reload" title="Reload image">↺</button>
+            </div>
+            <label class="upload-btn" for="ctrl-imgfile">⬆ Upload image from computer</label>
+            <input type="file" id="ctrl-imgfile" accept="image/*" style="display:none"/>
+          </div>
+
+          <div class="ctrl-block">
+            <div class="ctrl-label-row">
+              <span class="ctrl-label">Social Sharing Text (caption)</span>
+              <button class="copy-btn" id="copy-share-btn">Copy</button>
+            </div>
+            <textarea class="ctrl-ta ctrl-share" id="ctrl-share" rows="7" placeholder="Share text with shortened link appears here…" spellcheck="false"></textarea>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js?v=20260711b"></script>
+  <script src="app.js?v=20260711b"></script>
+</body>
+</html>
