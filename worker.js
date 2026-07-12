@@ -9,25 +9,25 @@
  */
 const CORS = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'};
 
-// Each publication -> ordered list of candidate RSS slugs. The worker tries
-// them in order and returns the first that yields items. This absorbs IOL's
-// inconsistent slug formatting (some titles hyphenate, some don't).
+// One confirmed iol.co.za slug per title (single request each — firing many
+// slug variants in parallel tripped IOL's rate limit, error 1015). Daily Voice
+// and Isolezwe have no iol.co.za feed, so they use their own domain only.
 const PUBS = {
-  capeargus:        ['capeargus','cape-argus'],
-  capetimes:        ['capetimes','cape-times'],
-  dailyvoice:       ['dailyvoice','daily-voice','voice'],
-  dailynews:        ['dailynews','daily-news'],
-  ios:              ['ios','independent-on-saturday','the-independent-on-saturday'],
-  isolezwe:         ['isolezwe','isolezwe-news'],
-  mercury:          ['mercury','the-mercury'],
-  pretorianews:     ['pretoria-news','pretorianews'],
-  thestar:          ['the-star','thestar'],
-  saturdaystar:     ['saturday-star','saturdaystar'],
-  sundaytribune:    ['sunday-tribune','sundaytribune'],
-  sundayindependent:['sundayindependent','sunday-independent'],
-  thepost:          ['thepost','the-post'],
-  weekendargus:     ['weekend-argus','weekendargus'],
-  businessreport:   ['business-report','businessreport','business'],
+  capeargus:        ['capeargus'],
+  capetimes:        ['capetimes'],
+  dailyvoice:       [],
+  dailynews:        ['dailynews'],
+  ios:              ['ios'],
+  isolezwe:         [],
+  mercury:          ['mercury'],
+  pretorianews:     ['pretoria-news'],
+  thestar:          ['the-star'],
+  saturdaystar:     ['saturday-star'],
+  sundaytribune:    ['sunday-tribune'],
+  sundayindependent:['sundayindependent'],
+  thepost:          ['thepost'],
+  weekendargus:     ['weekend-argus'],
+  businessreport:   ['business-report'],
 };
 // Friendly channel label per publication (used as fallback source).
 const LABELS = {
@@ -57,6 +57,26 @@ const FEED_URLS = {
   thepost:          ['https://www.thepost.co.za/rss/','https://thepost.co.za/rss/'],
   weekendargus:     ['https://weekendargus.co.za/rss/'],
   businessreport:   ['https://businessreport.co.za/rss/'],
+};
+// Substrings that mark a story as belonging to THIS title (its own domain, or
+// its section path on iol.co.za). Used to float a title's own stories above the
+// shared national/sport wire content.
+const TITLE_MARKERS = {
+  capeargus:        ['capeargus.co.za','/capeargus/'],
+  capetimes:        ['capetimes.co.za','/cape-times/','/capetimes/'],
+  dailyvoice:       ['dailyvoice.co.za','/daily-voice/','/dailyvoice/'],
+  dailynews:        ['dailynews.co.za','/daily-news/','/dailynews/'],
+  ios:              ['independentonsaturday.co.za','/independent-on-saturday/','/ios/'],
+  isolezwe:         ['isolezwe.co.za','/isolezwe/'],
+  mercury:          ['themercury.co.za','/the-mercury/','/mercury/'],
+  pretorianews:     ['pretorianews.co.za','/pretoria-news/','/pretorianews/'],
+  thestar:          ['thestar.co.za','/the-star/','/thestar/'],
+  saturdaystar:     ['saturdaystar.co.za','/saturday-star/','/saturdaystar/'],
+  sundaytribune:    ['sundaytribune.co.za','/sunday-tribune/','/sundaytribune/'],
+  sundayindependent:['sundayindependent.co.za','/sunday-independent/','/sundayindependent/'],
+  thepost:          ['thepost.co.za','/the-post/','/thepost/'],
+  weekendargus:     ['weekendargus.co.za','/weekend-argus/','/weekendargus/'],
+  businessreport:   ['businessreport.co.za','/business-report/','/business/'],
 };
 
 export default {
@@ -182,18 +202,65 @@ export default {
 };
 
 async function fetchPublication(pub) {
-  // Own-domain feed only — each title's site is the source of truth.
-  for (const u of (FEED_URLS[pub] || [])) {
-    try { const s = await fetchUrl(u, pub); if (s.length) return s; } catch(e) {}
+  // Merge the title's own-domain feed AND its iol.co.za per-title feed, so the
+  // list is both fresh and full. Own-domain feeds are often stale/tiny; the
+  // iol.co.za feed is updated continuously but leads with shared wire copy.
+  const iolSlugs = PUBS[pub] || [];
+  const urls = [
+    ...(FEED_URLS[pub] || []),
+    ...iolSlugs.map(s => 'https://iol.co.za/rss/extended/iol/' + s + '/'),
+  ];
+  const results = await Promise.allSettled(urls.map(u => fetchUrl(u, pub)));
+  const all = [];
+  for (const r of results) if (r.status === 'fulfilled') all.push(...r.value);
+
+  // Dedupe by the article's slug (last path segment) so the same story from
+  // iol.co.za and the title's own domain collapses to one.
+  const seen = new Set(), uniq = [];
+  for (const s of all) {
+    const k = artKey(s.url);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); uniq.push(s);
   }
-  return [];
+  // Drop stale leftovers (some own-domain feeds carry months-old items), then
+  // sort strictly newest-first so the top of the list is always the latest.
+  const now = Date.now(), MAXAGE = 45*24*3600*1000;
+  let list = uniq.filter(s => !s.ts || (now - s.ts) <= MAXAGE);
+  list.sort((a, b) => {
+    const d = (b.ts || 0) - (a.ts || 0);
+    if (d !== 0) return d;
+    // tie-break: a title's own story edges out shared wire copy
+    return (isTitleSpecific(pub, a.url) ? 0 : 1) - (isTitleSpecific(pub, b.url) ? 0 : 1);
+  });
+  return list.slice(0, 40);
+}
+
+function artKey(link) {
+  try { const u = new URL(link); const p = u.pathname.split('/').filter(Boolean); return (p[p.length-1] || u.pathname).toLowerCase(); }
+  catch(e) { return (link || '').toLowerCase(); }
+}
+function isTitleSpecific(pub, link) {
+  const marks = TITLE_MARKERS[pub] || [];
+  const l = (link || '').toLowerCase();
+  return marks.some(m => l.includes(m));
 }
 
 async function fetchUrl(u, pub) {
+  // A plain crawler UA is allowed straight through; a browser UA triggers IOL's
+  // JS bot-challenge (a non-RSS page), so keep this simple. Retry once, and only
+  // accept a response that actually parses into items.
   const HDRS = {'User-Agent':'Mozilla/5.0 (compatible; IOL Titles/1.0)','Accept':'application/rss+xml,text/xml'};
-  const res = await fetch(u, {headers:HDRS, cf:{cacheTtl:60}});
-  if (!res.ok) throw new Error('Feed '+res.status);
-  return parseRSS(await res.text(), pub);
+  let lastErr = null;
+  for (let attempt=0; attempt<2; attempt++) {
+    try {
+      const res = await fetch(u, {headers:HDRS, cf:{cacheTtl:600}});
+      if (!res.ok) { lastErr = new Error('Feed '+res.status); continue; }
+      const stories = parseRSS(await res.text(), pub);
+      if (stories.length) return stories;
+      lastErr = new Error('empty');
+    } catch(e) { lastErr = e; }
+  }
+  throw lastErr || new Error('fetch failed');
 }
 
 async function fetchFeed(slug, pub) {
@@ -243,6 +310,7 @@ function parseRSS(xml, pub) {
       category:cat,
       source:strip(author).trim().slice(0,50)||src,
       pubDate:pub2,
+      ts: Date.parse(pub2) || 0,
       url:link?link.trim():'https://www.iol.co.za/',
       image:imgM?imgM[1]:''
     });
