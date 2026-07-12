@@ -202,47 +202,27 @@ export default {
 };
 
 async function fetchPublication(pub) {
-  // Merge the title's own-domain feed AND its iol.co.za per-title feed, so the
-  // list is both fresh and full. Own-domain feeds are often stale/tiny; the
-  // iol.co.za feed is updated continuously but leads with shared wire copy.
-  const iolSlugs = PUBS[pub] || [];
-  const urls = [
-    ...(FEED_URLS[pub] || []),
-    ...iolSlugs.map(s => 'https://iol.co.za/rss/extended/iol/' + s + '/'),
-  ];
+  // Own-site feeds ONLY (no iol.co.za) — each title's own domain is the source
+  // of truth. Reliable, no rate-limiting, and no duplicated national wire copy.
+  const urls = FEED_URLS[pub] || [];
   const results = await Promise.allSettled(urls.map(u => fetchUrl(u, pub)));
   const all = [];
   for (const r of results) if (r.status === 'fulfilled') all.push(...r.value);
 
-  // Dedupe by the article's slug (last path segment) so the same story from
-  // iol.co.za and the title's own domain collapses to one.
+  // Dedupe by article slug, then sort newest-first.
   const seen = new Set(), uniq = [];
   for (const s of all) {
     const k = artKey(s.url);
     if (!k || seen.has(k)) continue;
     seen.add(k); uniq.push(s);
   }
-  // Drop stale leftovers (some own-domain feeds carry months-old items), then
-  // sort strictly newest-first so the top of the list is always the latest.
-  const now = Date.now(), MAXAGE = 45*24*3600*1000;
-  let list = uniq.filter(s => !s.ts || (now - s.ts) <= MAXAGE);
-  list.sort((a, b) => {
-    const d = (b.ts || 0) - (a.ts || 0);
-    if (d !== 0) return d;
-    // tie-break: a title's own story edges out shared wire copy
-    return (isTitleSpecific(pub, a.url) ? 0 : 1) - (isTitleSpecific(pub, b.url) ? 0 : 1);
-  });
-  return list.slice(0, 40);
+  uniq.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return uniq.slice(0, 40);
 }
 
 function artKey(link) {
   try { const u = new URL(link); const p = u.pathname.split('/').filter(Boolean); return (p[p.length-1] || u.pathname).toLowerCase(); }
   catch(e) { return (link || '').toLowerCase(); }
-}
-function isTitleSpecific(pub, link) {
-  const marks = TITLE_MARKERS[pub] || [];
-  const l = (link || '').toLowerCase();
-  return marks.some(m => l.includes(m));
 }
 
 async function fetchUrl(u, pub) {
