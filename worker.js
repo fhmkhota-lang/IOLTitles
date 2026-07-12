@@ -38,6 +38,12 @@ const LABELS = {
   sundayindependent:'Sunday Independent', thepost:'The Post',
   weekendargus:'Weekend Argus', businessreport:'Business Report',
 };
+// Titles that publish on their own domain (not iol.co.za). Full feed URLs,
+// tried before the iol.co.za slug candidates.
+const FEED_URLS = {
+  dailyvoice: ['https://dailyvoice.co.za/rss/'],
+  isolezwe:   ['https://isolezwe.co.za/rss/'],
+};
 
 export default {
   async fetch(request, env) {
@@ -162,18 +168,26 @@ export default {
 };
 
 async function fetchPublication(pub) {
+  // 1) Own-domain feeds (Daily Voice, Isolezwe) tried first.
+  for (const u of (FEED_URLS[pub] || [])) {
+    try { const s = await fetchUrl(u, pub); if (s.length) return s; } catch(e) {}
+  }
+  // 2) iol.co.za slug candidates.
   const slugs = PUBS[pub] || [pub];
   for (const slug of slugs) {
-    try {
-      const stories = await fetchFeed(slug, pub);
-      if (stories.length) return stories;
-    } catch(e) { /* try next candidate */ }
+    try { const s = await fetchFeed(slug, pub); if (s.length) return s; } catch(e) {}
   }
   return [];
 }
 
-async function fetchFeed(slug, pub) {
+async function fetchUrl(u, pub) {
   const HDRS = {'User-Agent':'Mozilla/5.0 (compatible; IOL Titles/1.0)','Accept':'application/rss+xml,text/xml'};
+  const res = await fetch(u, {headers:HDRS, cf:{cacheTtl:60}});
+  if (!res.ok) throw new Error('Feed '+res.status);
+  return parseRSS(await res.text(), pub);
+}
+
+async function fetchFeed(slug, pub) {
   const paths = [
     'https://iol.co.za/rss/extended/iol/'+slug+'/',
     'https://www.iol.co.za/rss/extended/iol/'+slug+'/',
@@ -181,9 +195,7 @@ async function fetchFeed(slug, pub) {
   let lastErr = null;
   for (const u of paths) {
     try {
-      const res = await fetch(u, {headers:HDRS, cf:{cacheTtl:60}});
-      if (!res.ok) { lastErr = new Error('Feed '+res.status); continue; }
-      const stories = parseRSS(await res.text(), pub);
+      const stories = await fetchUrl(u, pub);
       if (stories.length) return stories;
     } catch(e) { lastErr = e; }
   }

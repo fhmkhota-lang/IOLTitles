@@ -43,6 +43,9 @@ function autoKicker(cat){ return CAT_KICKER[(cat||'').toLowerCase()] || 'NEWS'; 
 const SUPA_URL = 'https://asipandmcgagpswsgbtr.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXBhbmRtY2dhZ3Bzd3NnYnRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTc0MzEsImV4cCI6MjA5NzgzMzQzMX0.yc6mSP_EXe8g1w61r667SCoQsSeZILSkZ-BfCka6VDI';
 const DONE_PREFIX = 'title_';
+// Ticks are namespaced per publication so the same wire story ticked under one
+// title never shows as done under another title.
+function doneKey(pub,id){ return DONE_PREFIX + pub + '__' + id; }
 let doneIds = new Set();
 
 async function loadDoneFromSupabase() {
@@ -54,8 +57,7 @@ async function loadDoneFromSupabase() {
     if (Array.isArray(rows)) { doneIds = new Set(rows.map(r => r.id)); renderFeed(); }
   } catch(e) { console.warn('Supabase load:', e); }
 }
-async function markDoneInSupabase(storyId, headline) {
-  const id = DONE_PREFIX + storyId;
+async function markDoneInSupabase(id, headline) {
   doneIds.add(id);
   const name = localStorage.getItem('iol_titles_user') || 'Team';
   try {
@@ -159,7 +161,7 @@ function renderFeed(){
   const vis=filt.slice(0,visible);
   if(!vis.length){grid.innerHTML=`<div class="grid-loading"><p>${q?'No stories match "'+esc(q)+'".':'No stories yet — hit refresh, or the live feed activates after deploy.'}</p></div>`;if($id('load-more-row'))$id('load-more-row').style.display='none';return;}
   grid.innerHTML=vis.map(s=>`
-    <div class="scard${doneIds.has(DONE_PREFIX+s.id)?' done':''}" data-id="${esc(s.id)}">
+    <div class="scard${doneIds.has(doneKey(curPub,s.id))?' done':''}" data-id="${esc(s.id)}">
       <div class="scard-cat">${esc(autoKicker(s.cat))}</div>
       <div class="scard-hl">${esc(s.headline)}</div>
       ${s.excerpt?`<div class="scard-ex">${esc(s.excerpt)}</div>`:''}
@@ -410,7 +412,7 @@ function buildShareText(){
 
 /* Downloads */
 function dlCanvas(id,fn){const c=$id(id);if(!c)return;try{const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=fn;a.click();}catch(e){alert('Right-click the card and choose "Save image as".');}}
-function markDone(){if(d.storyId){markDoneInSupabase(d.storyId,stripStars(d.headline));renderFeed();}}
+function markDone(){if(d.storyId){markDoneInSupabase(doneKey(d.pub,d.storyId),stripStars(d.headline));renderFeed();}}
 $id('btn-dl-sq')?.addEventListener('click',()=>{markDone();dlCanvas('card-canvas-sq',d.pub+'-square.png');});
 $id('btn-dl-reel')?.addEventListener('click',()=>{markDone();dlCanvas('card-canvas-reel',d.pub+'-reel.png');});
 $id('btn-dl-all')?.addEventListener('click',async()=>{
