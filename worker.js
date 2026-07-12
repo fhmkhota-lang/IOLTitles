@@ -38,11 +38,25 @@ const LABELS = {
   sundayindependent:'Sunday Independent', thepost:'The Post',
   weekendargus:'Weekend Argus', businessreport:'Business Report',
 };
-// Titles that publish on their own domain (not iol.co.za). Full feed URLs,
-// tried before the iol.co.za slug candidates.
+// Each title has its OWN website + RSS feed (title-specific content). These are
+// the source of truth. The old iol.co.za/rss/extended/iol/<slug> feeds returned
+// identical shared wire content across every title, so they are NOT used.
 const FEED_URLS = {
-  dailyvoice: ['https://dailyvoice.co.za/rss/'],
-  isolezwe:   ['https://isolezwe.co.za/rss/'],
+  capeargus:        ['https://capeargus.co.za/rss/'],
+  capetimes:        ['https://capetimes.co.za/rss/'],
+  dailyvoice:       ['https://dailyvoice.co.za/rss/'],
+  dailynews:        ['https://dailynews.co.za/rss/'],
+  ios:              ['https://independentonsaturday.co.za/rss/'],
+  isolezwe:         ['https://isolezwe.co.za/rss/'],
+  mercury:          ['https://themercury.co.za/rss/'],
+  pretorianews:     ['https://pretorianews.co.za/rss/'],
+  thestar:          ['https://www.thestar.co.za/rss/','https://thestar.co.za/rss/'],
+  saturdaystar:     ['https://www.saturdaystar.co.za/rss/','https://saturdaystar.co.za/rss/'],
+  sundaytribune:    ['https://sundaytribune.co.za/rss/'],
+  sundayindependent:['https://sundayindependent.co.za/rss/'],
+  thepost:          ['https://www.thepost.co.za/rss/','https://thepost.co.za/rss/'],
+  weekendargus:     ['https://weekendargus.co.za/rss/'],
+  businessreport:   ['https://businessreport.co.za/rss/'],
 };
 
 export default {
@@ -168,14 +182,9 @@ export default {
 };
 
 async function fetchPublication(pub) {
-  // 1) Own-domain feeds (Daily Voice, Isolezwe) tried first.
+  // Own-domain feed only — each title's site is the source of truth.
   for (const u of (FEED_URLS[pub] || [])) {
     try { const s = await fetchUrl(u, pub); if (s.length) return s; } catch(e) {}
-  }
-  // 2) iol.co.za slug candidates.
-  const slugs = PUBS[pub] || [pub];
-  for (const slug of slugs) {
-    try { const s = await fetchFeed(slug, pub); if (s.length) return s; } catch(e) {}
   }
   return [];
 }
