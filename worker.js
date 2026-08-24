@@ -246,7 +246,10 @@ async function fetchPublication(pub) {
 function homepageFor(pub) {
   const u = (FEED_URLS[pub] || [])[0];
   if (!u) return '';
-  try { return new URL(u).origin + '/'; } catch (e) { return ''; }
+  // The Star and Saturday Star list a www. feed URL, but www. 301-redirects to
+  // the apex domain. Every article fetch then costs two subrequests, which blew
+  // the per-request budget and returned an almost-empty feed. Use apex directly.
+  try { return new URL(u).origin.replace('://www.', '://') + '/'; } catch (e) { return ''; }
 }
 
 // Pull dated article links off a title's homepage, then read og: tags from
@@ -262,8 +265,36 @@ async function scrapeHomepage(pub) {
   // Links appear as "pubUrl":"/sport/rugby/springboks/2026-08-23-slug" and can be
   // several segments deep, so capture the whole path, not just the last segment.
   const found = [...html.matchAll(/["'\\](\/(?:[a-z0-9-]+\/)*20\d{2}-\d{2}-\d{2}-[a-z0-9-]+)/g)].map(m => m[1]);
-  const paths = [...new Set(found)].filter(p => p.length > 24).slice(0, 16);
-  if (!paths.length) return [];
+  const uniqPaths = [...new Set(found)].filter(p => p.length > 24);
+  if (!uniqPaths.length) return [];
+
+  // Homepages group their markup by section, so taking the first N in document
+  // order returns whatever block sits highest (The Star led with sport and
+  // returned nothing else). Bucket by section and round-robin instead, so the
+  // feed reflects the whole front page.
+  const buckets = new Map();
+  for (const p of uniqPaths) {
+    const seg = p.split('/').filter(Boolean)[0] || 'root';
+    const key = /^20\d{2}-/.test(seg) ? 'root' : seg;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(p);
+  }
+  const lists = [...buckets.entries()]
+    // Root-level dated paths (no section) are usually cross-site references and
+    // 404 on the title's own domain, so try them last rather than never.
+    .sort((a, b) => (a[0] === 'root' ? 1 : 0) - (b[0] === 'root' ? 1 : 0))
+    .map(e => e[1]);
+  const paths = [];
+  // Over-fetch: some links 404, so ask for more than we need and let the
+  // failures fall away. Stays well inside the subrequest budget.
+  const WANT = 20;
+  for (let i = 0; paths.length < WANT; i++) {
+    let added = false;
+    for (const list of lists) {
+      if (i < list.length) { paths.push(list[i]); added = true; if (paths.length >= WANT) break; }
+    }
+    if (!added) break;
+  }
 
   const settled = await Promise.allSettled(
     paths.map(p => articleMeta(new URL(p, home).toString(), pub))
@@ -275,7 +306,11 @@ async function articleMeta(url, pub) {
   const HDRS = { 'User-Agent': 'Mozilla/5.0 (compatible; IOL Titles/1.0)', 'Accept': 'text/html' };
   const res = await fetch(url, { headers: HDRS, cf: { cacheTtl: 1800 } });
   if (!res.ok) return null;
-  const html = await res.text();
+  const full = await res.text();
+  // og: tags live in <head>. These pages are ~250KB each and regexing all of it
+  // across ~20 articles blows the worker's CPU budget, so cut to the head first.
+  const cut = full.indexOf('</head>');
+  const html = cut > 0 ? full.slice(0, cut) : full.slice(0, 60000);
   const og = (prop) => {
     const a = html.match(new RegExp('<meta[^>]*property=["\']' + prop + '["\'][^>]*content=["\']([^"\']*)', 'i'));
     if (a) return a[1];
