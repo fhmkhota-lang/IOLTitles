@@ -16,21 +16,21 @@ const PAGE_SZ = 12;
 
 /* ── Publication registry (order = picker order) ── */
 const PUBLICATIONS = [
-  {key:'capeargus',        name:'Cape Argus',              color:'#C8102E', city:'Cape Town',    region:'Western Cape',  tagline:'Your City, Your Paper'},
+  {key:'capeargus',        name:'Cape Argus',              color:'#E00000', city:'Cape Town',    region:'Western Cape',  tagline:'Your City, Your Paper'},
   {key:'capetimes',        name:'Cape Times',              color:'#003DA5', city:'Cape Town',    region:'Western Cape',  tagline:"Cape Town's Morning Paper", logoBox:'brand'},
-  {key:'dailyvoice',       name:'Daily Voice',             color:'#E31837', city:'Cape Town',    region:'Western Cape',  tagline:"Cape Town's Boldest Voice"},
-  {key:'dailynews',        name:'Daily News',              color:'#003087', city:'Durban',       region:'KwaZulu-Natal', tagline:"Durban's Daily News"},
-  {key:'ios',              name:'Independent on Saturday', color:'#C8102E', city:'Durban',       region:'KwaZulu-Natal', tagline:'Your Saturday Read'},
-  {key:'isolezwe',         name:'Isolezwe',                color:'#D4000F', city:'Durban',       region:'KwaZulu-Natal', tagline:'Isikhathi Sakho'},
-  {key:'mercury',          name:'The Mercury',             color:'#003087', city:'Durban',       region:'KwaZulu-Natal', tagline:"Durban's Morning Paper"},
-  {key:'pretorianews',     name:'Pretoria News',           color:'#C8102E', city:'Pretoria',     region:'Gauteng',       tagline:"Pretoria's Daily Paper"},
-  {key:'thestar',          name:'The Star',                color:'#003DA5', city:'Johannesburg', region:'Gauteng',       tagline:'The Star of Johannesburg'},
-  {key:'saturdaystar',     name:'Saturday Star',           color:'#003DA5', city:'Johannesburg', region:'Gauteng',       tagline:'Your Saturday Star'},
+  {key:'dailyvoice',       name:'Daily Voice',             color:'#C00010', city:'Cape Town',    region:'Western Cape',  tagline:"Cape Town's Boldest Voice"},
+  {key:'dailynews',        name:'Daily News',              color:'#D02020', city:'Durban',       region:'KwaZulu-Natal', tagline:"Durban's Daily News"},
+  {key:'ios',              name:'Independent on Saturday', color:'#303080', city:'Durban',       region:'KwaZulu-Natal', tagline:'Your Saturday Read'},
+  {key:'isolezwe',         name:'Isolezwe',                color:'#007030', city:'Durban',       region:'KwaZulu-Natal', tagline:'Isikhathi Sakho'},
+  {key:'mercury',          name:'The Mercury',             color:'#104070', city:'Durban',       region:'KwaZulu-Natal', tagline:"Durban's Morning Paper"},
+  {key:'pretorianews',     name:'Pretoria News',           color:'#004080', city:'Pretoria',     region:'Gauteng',       tagline:"Pretoria's Daily Paper"},
+  {key:'thestar',          name:'The Star',                color:'#E00010', city:'Johannesburg', region:'Gauteng',       tagline:'The Star of Johannesburg'},
+  {key:'saturdaystar',     name:'Saturday Star',           color:'#004090', city:'Johannesburg', region:'Gauteng',       tagline:'Your Saturday Star'},
   {key:'sundaytribune',    name:'Sunday Tribune',          color:'#C8102E', city:'Durban',       region:'KwaZulu-Natal', tagline:"Sunday's Trusted Voice"},
-  {key:'sundayindependent',name:'Sunday Independent',      color:'#1A1A2E', city:'Johannesburg', region:'Gauteng',       tagline:'Independent Every Sunday'},
-  {key:'thepost',          name:'The Post',                color:'#C8102E', city:'Durban',       region:'KwaZulu-Natal', tagline:'The Voice of KZN'},
-  {key:'weekendargus',     name:'Weekend Argus',           color:'#C8102E', city:'Cape Town',    region:'Western Cape',  tagline:'Your Weekend Paper'},
-  {key:'businessreport',   name:'Business Report',         color:'#1A3A5C', city:'South Africa', region:'Business',      tagline:"SA's Business Voice"},
+  {key:'sundayindependent',name:'Sunday Independent',      color:'#005090', city:'Johannesburg', region:'Gauteng',       tagline:'Independent Every Sunday'},
+  {key:'thepost',          name:'The Post',                color:'#C02020', city:'Durban',       region:'KwaZulu-Natal', tagline:'The Voice of KZN'},
+  {key:'weekendargus',     name:'Weekend Argus',           color:'#C01010', city:'Cape Town',    region:'Western Cape',  tagline:'Your Weekend Paper'},
+  {key:'businessreport',   name:'Business Report',         color:'#204090', city:'South Africa', region:'Business',      tagline:"SA's Business Voice"},
 ];
 const PUB = {}; PUBLICATIONS.forEach(p => PUB[p.key] = p);
 function pubCfg(key){ return PUB[key] || PUBLICATIONS[0]; }
@@ -480,7 +480,7 @@ function drawBottomBar(ctx,p,W,H,isReel){
 
 function drawLogoChip(ctx,p,x,y,isReel){
   const pub=pubCfg(p.pub), logo=LOGO_CACHE[p.pub];
-  const pad=isReel?18:15, maxH=isReel?92:76, maxW=(isReel?RW:SQ)*0.52;
+  const pad=isReel?18:15, maxH=isReel?112:94, maxW=(isReel?RW:SQ)*0.58;
   let lw=maxW,lh=maxH;
   if(logo){const sc=Math.min(maxW/logo.width,maxH/logo.height);lw=logo.width*sc;lh=logo.height*sc;}
   const chipW=lw+2*pad, chipH=lh+2*pad, r=Math.min(12,chipH/4);

@@ -217,7 +217,103 @@ async function fetchPublication(pub) {
     seen.add(k); uniq.push(s);
   }
   uniq.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  // FALLBACK: several titles publish a valid but empty (or long-stale) RSS
+  // channel while their site is full of current articles. When that happens,
+  // read the homepage instead. Only fires when the feed is thin, so titles
+  // with healthy feeds are untouched.
+  const FRESH_MS = 1000 * 60 * 60 * 72; // 72h
+  const newest = uniq.length ? (uniq[0].ts || 0) : 0;
+  const stale = !newest || (Date.now() - newest) > FRESH_MS;
+  if (uniq.length < 5 || stale) {
+    try {
+      const scraped = await scrapeHomepage(pub);
+      if (scraped.length) {
+        for (const s of scraped) {
+          const k = artKey(s.url);
+          if (!k || seen.has(k)) continue;
+          seen.add(k); uniq.push(s);
+        }
+        uniq.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      }
+    } catch (e) { /* keep whatever the feed gave us */ }
+  }
+
   return uniq.slice(0, 40);
+}
+
+// Homepage of each title, derived from its own feed URL.
+function homepageFor(pub) {
+  const u = (FEED_URLS[pub] || [])[0];
+  if (!u) return '';
+  try { return new URL(u).origin + '/'; } catch (e) { return ''; }
+}
+
+// Pull dated article links off a title's homepage, then read og: tags from
+// each article to build proper story objects.
+async function scrapeHomepage(pub) {
+  const home = homepageFor(pub);
+  if (!home) return [];
+  const HDRS = { 'User-Agent': 'Mozilla/5.0 (compatible; IOL Titles/1.0)', 'Accept': 'text/html' };
+  const res = await fetch(home, { headers: HDRS, cf: { cacheTtl: 300 } });
+  if (!res.ok) return [];
+  const html = await res.text();
+
+  // Links appear as "pubUrl":"/sport/rugby/springboks/2026-08-23-slug" and can be
+  // several segments deep, so capture the whole path, not just the last segment.
+  const found = [...html.matchAll(/["'\\](\/(?:[a-z0-9-]+\/)*20\d{2}-\d{2}-\d{2}-[a-z0-9-]+)/g)].map(m => m[1]);
+  const paths = [...new Set(found)].filter(p => p.length > 24).slice(0, 16);
+  if (!paths.length) return [];
+
+  const settled = await Promise.allSettled(
+    paths.map(p => articleMeta(new URL(p, home).toString(), pub))
+  );
+  return settled.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+}
+
+async function articleMeta(url, pub) {
+  const HDRS = { 'User-Agent': 'Mozilla/5.0 (compatible; IOL Titles/1.0)', 'Accept': 'text/html' };
+  const res = await fetch(url, { headers: HDRS, cf: { cacheTtl: 1800 } });
+  if (!res.ok) return null;
+  const html = await res.text();
+  const og = (prop) => {
+    const a = html.match(new RegExp('<meta[^>]*property=["\']' + prop + '["\'][^>]*content=["\']([^"\']*)', 'i'));
+    if (a) return a[1];
+    const b = html.match(new RegExp('<meta[^>]*content=["\']([^"\']*)["\'][^>]*property=["\']' + prop + '["\']', 'i'));
+    return b ? b[1] : '';
+  };
+  const title = decodeEntities(og('og:title')).trim();
+  if (!title || title.length < 5) return null;
+
+  let image = og('og:image');
+  if (image && image.includes('iol-prod.appspot.com')) image = image.replace(/=[swh]\d+.*$/, '') + '=w1200';
+
+  // Date comes from the slug, which is reliable across all the titles.
+  const dm = url.match(/(20\d{2})-(\d{2})-(\d{2})/);
+  const ts = dm ? Date.parse(`${dm[1]}-${dm[2]}-${dm[3]}T12:00:00Z`) : 0;
+
+  let cat = 'news';
+  if (/\/sport\/|\/bafana\//.test(url)) cat = 'sport';
+  else if (/\/politics\//.test(url)) cat = 'politics';
+  else if (/\/business\/|business-report/.test(url)) cat = 'business';
+  else if (/\/opinion\//.test(url)) cat = 'opinion';
+  else if (/\/crime|city-watch/.test(url)) cat = 'crime';
+  else if (/\/motoring\//.test(url)) cat = 'motoring';
+  else if (/\/travel\//.test(url)) cat = 'travel';
+  else if (/\/lifestyle\//.test(url)) cat = 'lifestyle';
+  else if (/\/technology\//.test(url)) cat = 'technology';
+  else if (/\/entertainment\//.test(url)) cat = 'entertainment';
+
+  return {
+    headline: title,
+    excerpt: decodeEntities(og('og:description')).replace(/\s+/g, ' ').trim().slice(0, 220),
+    category: cat,
+    source: LABELS[pub] || 'IOL',
+    pubDate: ts ? new Date(ts).toUTCString() : '',
+    ts,
+    url,
+    image: image || '',
+  };
 }
 
 function artKey(link) {
@@ -300,5 +396,23 @@ function parseRSS(xml, pub) {
 function cdata(x,t){const r=new RegExp('<'+t+'[^>]*>(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/'+t+'>','i'),m=x.match(r);return m?(m[1]!==undefined?m[1]:m[2]||'').trim():'';}
 function tag(x,t){const r=new RegExp('<'+t+'[^>]*>([\\s\\S]*?)<\\/'+t+'>','i'),m=x.match(r);return m?m[1].trim():'';}
 function strip(h){return decodeEntities(h.replace(/<[^>]+>/g,' ')).replace(/\s+/g,' ').trim();}
-function decodeEntities(h){return String(h||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0?39;/g,"'").replace(/&#8217;/g,"'").replace(/&#8216;/g,"'").replace(/&#8220;/g,'"').replace(/&#8221;/g,'"').replace(/&nbsp;/g,' ');}
+function decodeEntities(h){
+  let s = String(h||'')
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+    .replace(/&nbsp;/g,' ').replace(/&hellip;/g,'\u2026')
+    .replace(/&ndash;/g,'\u2013').replace(/&mdash;/g,'\u2014')
+    .replace(/&lsquo;/g,'\u2018').replace(/&rsquo;/g,'\u2019')
+    .replace(/&ldquo;/g,'\u201C').replace(/&rdquo;/g,'\u201D');
+  // Numeric entities: decimal (&#39;) and hex (&#x27;). The titles' og: tags are
+  // hex-encoded, which is why apostrophes were showing as &#x27; on cards.
+  s = s.replace(/&#[xX]([0-9a-fA-F]+);/g, (_, n) => {
+        try { return String.fromCodePoint(parseInt(n, 16)); } catch(e){ return _; }
+      })
+      .replace(/&#(\d+);/g, (_, n) => {
+        try { return String.fromCodePoint(parseInt(n, 10)); } catch(e){ return _; }
+      });
+  // Run &amp; last as well, to catch double-encoded input (&amp;#x27;).
+  return s.replace(/&amp;/g,'&');
+}
 function j(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...CORS,'Content-Type':'application/json','Cache-Control':'no-store, max-age=0'}});}
