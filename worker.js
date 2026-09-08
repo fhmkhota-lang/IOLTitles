@@ -41,22 +41,29 @@ const LABELS = {
 // Each title has its OWN website + RSS feed (title-specific content). These are
 // the source of truth. The old iol.co.za/rss/extended/iol/<slug> feeds returned
 // identical shared wire content across every title, so they are NOT used.
+// IOL carries a per-title feed for each masthead and it is far richer than the
+// titles' own sites: 100 items vs 30, current, with media:content images.
+// Slugs are inconsistent (capeargus but weekend-argus, the-star but thepost),
+// so each one below was verified individually. The title's own feed is kept as
+// a fallback, and the homepage scraper remains as a last resort after that.
+// Daily Voice and Isolezwe have no IOL feed under any slug tried, so they keep
+// using their own sites, which are already current.
 const FEED_URLS = {
-  capeargus:        ['https://capeargus.co.za/rss/'],
-  capetimes:        ['https://capetimes.co.za/rss/'],
+  capeargus:        ['https://rss.iol.io/iol/capeargus',        'https://capeargus.co.za/rss/'],
+  capetimes:        ['https://rss.iol.io/iol/capetimes',        'https://capetimes.co.za/rss/'],
   dailyvoice:       ['https://dailyvoice.co.za/rss/'],
-  dailynews:        ['https://dailynews.co.za/rss/'],
-  ios:              ['https://independentonsaturday.co.za/rss/'],
+  dailynews:        ['https://rss.iol.io/iol/dailynews',        'https://dailynews.co.za/rss/'],
+  ios:              ['https://rss.iol.io/iol/ios',              'https://independentonsaturday.co.za/rss/'],
   isolezwe:         ['https://isolezwe.co.za/rss/'],
-  mercury:          ['https://themercury.co.za/rss/'],
-  pretorianews:     ['https://pretorianews.co.za/rss/'],
-  thestar:          ['https://www.thestar.co.za/rss/','https://thestar.co.za/rss/'],
-  saturdaystar:     ['https://www.saturdaystar.co.za/rss/','https://saturdaystar.co.za/rss/'],
-  sundaytribune:    ['https://sundaytribune.co.za/rss/'],
-  sundayindependent:['https://sundayindependent.co.za/rss/'],
-  thepost:          ['https://www.thepost.co.za/rss/','https://thepost.co.za/rss/'],
-  weekendargus:     ['https://weekendargus.co.za/rss/'],
-  businessreport:   ['https://businessreport.co.za/rss/'],
+  mercury:          ['https://rss.iol.io/iol/mercury',          'https://themercury.co.za/rss/'],
+  pretorianews:     ['https://rss.iol.io/iol/pretoria-news',    'https://pretorianews.co.za/rss/'],
+  thestar:          ['https://rss.iol.io/iol/the-star',         'https://thestar.co.za/rss/'],
+  saturdaystar:     ['https://rss.iol.io/iol/saturday-star',    'https://saturdaystar.co.za/rss/'],
+  sundaytribune:    ['https://rss.iol.io/iol/sunday-tribune',   'https://sundaytribune.co.za/rss/'],
+  sundayindependent:['https://iol.co.za/rss/extended/iol/sundayindependent/', 'https://sundayindependent.co.za/rss/'],
+  thepost:          ['https://rss.iol.io/iol/thepost',          'https://thepost.co.za/rss/'],
+  weekendargus:     ['https://rss.iol.io/iol/weekend-argus',    'https://weekendargus.co.za/rss/'],
+  businessreport:   ['https://rss.iol.io/iol/business-report',  'https://businessreport.co.za/rss/'],
 };
 // Substrings that mark a story as belonging to THIS title (its own domain, or
 // its section path on iol.co.za). Used to float a title's own stories above the
@@ -396,7 +403,9 @@ function parseRSS(xml, pub) {
   while((m=re.exec(xml))!==null){
     const item=m[1];
     const title=cdata(item,'title'), link=tag(item,'link')||tag(item,'guid');
-    const desc=cdata(item,'description'), author=cdata(item,'author')||src, pub2=tag(item,'pubDate')||'';
+    // IOL's per-title feeds ship an empty <description> and put the summary in
+    // <dc:abstract>, so fall back to that or captions come out blank.
+    const desc=cdata(item,'description')||cdata(item,'dc:abstract')||cdata(item,'content:encoded'), author=cdata(item,'author')||cdata(item,'dc:creator')||src, pub2=tag(item,'pubDate')||'';
     const encM=item.match(/<enclosure[^>]*url="([^"]+)"/i);
     const mediaM=item.match(/<media:content[\s\S]*?url="([^"]+)"/i)||item.match(/<media:thumbnail[\s\S]*?url="([^"]+)"/i);
     const imgM = encM || mediaM;
