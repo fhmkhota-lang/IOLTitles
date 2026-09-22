@@ -10,7 +10,12 @@
    Media/feeds served by the dedicated ioltitles worker.
    AI_WORKER handles /claude (AI infographic) via the ioltester worker, which
    already holds the ANTHROPIC_KEY secret — avoids duplicating the key. */
-const WORKER = 'https://ioltitles.faheem-khota.workers.dev';
+// On GitHub Pages the feed API lives on the separate, open ioltitles worker.
+// On the Cloudflare Access-protected build the site is served BY the worker,
+// so the API is same-origin and the login cookie covers every request.
+const WORKER = /github\.io$|^localhost$|^127\./.test(location.hostname)
+  ? 'https://ioltitles.faheem-khota.workers.dev'
+  : location.origin;
 const AI_WORKER = 'https://ioltester.fhmkhota.workers.dev';
 const PAGE_SZ = 12;
 

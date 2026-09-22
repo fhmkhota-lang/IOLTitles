@@ -1,0 +1,17 @@
+# Access-protected build of Title Cards.
+# Separate worker from the open "ioltitles" one, which keeps serving the
+# GitHub Pages site untouched during the pilot.
+#
+# This worker serves the site itself (static assets) AND the feed API from one
+# hostname, so a single Cloudflare Access login covers every request.
+#
+# Deploy with:  ./deploy-secure.sh
+name = "ioltitles-secure"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+[assets]
+# Built by deploy-secure.sh from an explicit allowlist, so worker source,
+# config, git history and working files can never be published by accident.
+directory = "./.deploy-public"
