@@ -36,6 +36,8 @@ const PUBLICATIONS = [
   {key:'thepost',          name:'The Post',                color:'#C02020', site:'thepost.co.za',              city:'Durban',       region:'KwaZulu-Natal', tagline:'The Voice of KZN'},
   {key:'weekendargus',     name:'Weekend Argus',           color:'#C01010', site:'weekendargus.co.za',         city:'Cape Town',    region:'Western Cape',  tagline:'Your Weekend Paper'},
   {key:'businessreport',   name:'Business Report',         color:'#204090', site:'businessreport.co.za',       city:'South Africa', region:'Business',      tagline:"SA's Business Voice"},
+  // Lifestyle title — its own casual card style (see drawLifestyleCard).
+  {key:'capetowner',       name:'CapeTowner',              color:'#F0A830', site:'capetowner.co.za',           city:'Cape Town',    region:'Western Cape',  tagline:'Your City, Your Vibe', style:'lifestyle', ink:'#00183C'},
 ];
 const PUB = {}; PUBLICATIONS.forEach(p => PUB[p.key] = p);
 function pubCfg(key){ return PUB[key] || PUBLICATIONS[0]; }
@@ -553,6 +555,8 @@ function drawTextBlock(ctx,p,W,H,isReel,areaTop,areaBottom){
 }
 
 function drawTitleCard(ctx,p,W,H,isReel){
+  // Lifestyle titles get a softer, cleaner card of their own.
+  if(pubCfg(p.pub).style==='lifestyle') return drawLifestyleCard(ctx,p,W,H,isReel);
   const imgX=isReel?p.reelImgX:p.sqImgX, imgY=isReel?p.reelImgY:p.sqImgY, sc=(isReel?p.reelImgScale:p.sqImgScale)||1;
   drawPhotoAndOverlay(ctx,p,W,H,imgX,imgY,sc);
   const barH=drawBottomBar(ctx,p,W,H,isReel);
@@ -562,6 +566,83 @@ function drawTitleCard(ctx,p,W,H,isReel){
   const areaBottom=H-barH-(isReel?40:30);
   const tp=isReel?p.reelTextPos:p.textPos;
   drawTextBlock(ctx,{...p,textPos:tp},W,H,isReel,areaTop,areaBottom);
+}
+
+/* ── Lifestyle card (CapeTowner) ──────────────────────────────────────────
+   Deliberately softer than the newspaper mastheads: full-bleed photo, the
+   round logo sitting top-left with no chip behind it, and a warm amber wash
+   rising from the bottom that the headline sits on in navy. Sentence case,
+   no heavy bottom bar — just the domain.                                   */
+function drawLifestyleCard(ctx,p,W,H,isReel){
+  const cfg=pubCfg(p.pub), amber=cfg.color||'#F0A830', ink=cfg.ink||'#00183C';
+  const M=isReel?74:62;
+
+  // Photo, full bleed
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  drawPhoto(ctx,p,W,H,isReel?p.reelImgX:p.sqImgX,isReel?p.reelImgY:p.sqImgY,(isReel?p.reelImgScale:p.sqImgScale)||1);
+
+  // Warm amber wash behind the text, fading up out of the bottom
+  const rgb='240,168,48';
+  const g=ctx.createLinearGradient(0,H*0.34,0,H);
+  g.addColorStop(0,   `rgba(${rgb},0)`);
+  g.addColorStop(0.42,`rgba(${rgb},0.52)`);
+  g.addColorStop(0.72,`rgba(${rgb},0.88)`);
+  g.addColorStop(1,   `rgba(${rgb},0.97)`);
+  ctx.fillStyle=g;ctx.fillRect(0,H*0.34,W,H*0.66);
+
+  // Logo, top-left, no chip
+  const logo=LOGO_CACHE[p.pub];
+  if(logo){
+    const s=isReel?200:172, ar=logo.width/logo.height;
+    const lw=ar>=1?s:s*ar, lh=ar>=1?s/ar:s;
+    ctx.save();ctx.shadowColor='rgba(0,0,0,0.28)';ctx.shadowBlur=isReel?22:16;ctx.shadowOffsetY=3;
+    ctx.drawImage(logo,M,isReel?58:48,lw,lh);ctx.restore();
+  }
+
+  // Footer domain, then build the text block upward from it
+  const footY=H-(isReel?76:60);
+  ctx.save();
+  ctx.font=`600 ${isReel?27:23}px Poppins,sans-serif`;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='rgba(0,24,60,0.62)';
+  drawTracked(ctx,(cfg.site||'').toUpperCase(),M,footY,isReel?2.8:2.4);
+  ctx.restore();
+
+  // Headline — sentence case, navy, auto-shrunk to fit
+  const maxW=W-M*2;
+  let fs=isReel?74:64, lines, lineH;
+  for(let i=0;i<16;i++){
+    ctx.font=`700 ${fs}px Poppins,sans-serif`;
+    lines=wrapWords(ctx,(p.headline||'').split(/\s+/).filter(Boolean).map(t=>({text:t})),maxW);
+    lineH=Math.round(fs*1.18);
+    if(lines.length<=(isReel?6:4)||fs<=34)break;
+    fs=Math.round(fs*0.93);
+  }
+  const hlBottom=footY-(isReel?58:44);
+  let y=hlBottom-lines.length*lineH;
+
+  // Kicker pill above the headline, navy on amber
+  const kick=(p.kicker||'').trim();
+  if(kick){
+    const kfs=isReel?27:24, tr=isReel?2.8:2.4;
+    ctx.font=`700 ${kfs}px Poppins,sans-serif`;
+    const tw=measTracked(ctx,kick.toUpperCase(),tr), padX=kfs*0.95, kh=kfs*2.05;
+    const ky=y-(isReel?40:32)-kh;
+    ctx.fillStyle=ink;ctx.beginPath();ctx.roundRect(M,ky,tw+padX*2,kh,kh/2);ctx.fill();
+    ctx.fillStyle='#FFFFFF';ctx.textBaseline='middle';ctx.textAlign='left';
+    drawTracked(ctx,kick.toUpperCase(),M+padX,ky+kh/2+1,tr);
+    ctx.textBaseline='alphabetic';
+  }
+
+  ctx.save();
+  ctx.font=`700 ${fs}px Poppins,sans-serif`;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle=ink;
+  const spaceW=ctx.measureText(' ').width;
+  lines.forEach(line=>{
+    let cx=M;const by=y+fs;
+    line.forEach(word=>{ctx.fillText(word.text,cx,by);cx+=ctx.measureText(word.text).width+spaceW;});
+    y+=lineH;
+  });
+  ctx.restore();
 }
 
 function drawInfographic(ctx,p,W,H,isReel){
