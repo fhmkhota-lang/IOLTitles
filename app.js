@@ -618,21 +618,14 @@ function drawLifestyleCard(ctx,p,W,H,isReel){
   let top=tp==='top'?areaTop:tp==='mid'?areaTop+((areaBottom-areaTop)-blockH)/2:areaBottom-blockH;
   if(top<areaTop)top=areaTop;
 
-  // ── Amber wash: a soft band behind the text, wherever it sits, plus a
-  //    light wash at the foot so the domain stays readable. ──
-  const fade=isReel?300:240;
-  const bandTop=Math.max(0,top-fade), bandBot=Math.min(H,top+blockH+fade*0.5);
-  const band=ctx.createLinearGradient(0,bandTop,0,bandBot);
-  band.addColorStop(0,`rgba(${RGB},0)`);
-  band.addColorStop(0.38,`rgba(${RGB},0.80)`);
-  band.addColorStop(0.72,`rgba(${RGB},0.94)`);
-  band.addColorStop(1,`rgba(${RGB},0.72)`);
-  ctx.fillStyle=band;ctx.fillRect(0,bandTop,W,bandBot-bandTop);
-
-  const foot=ctx.createLinearGradient(0,H*0.70,0,H);
-  foot.addColorStop(0,`rgba(${RGB},0)`);
-  foot.addColorStop(1,`rgba(${RGB},0.95)`);
-  ctx.fillStyle=foot;ctx.fillRect(0,H*0.70,W,H*0.30);
+  // ── Amber wash: fixed at the bottom of the card, regardless of where the
+  //    text sits. ──
+  const g=ctx.createLinearGradient(0,H*0.34,0,H);
+  g.addColorStop(0,   `rgba(${RGB},0)`);
+  g.addColorStop(0.42,`rgba(${RGB},0.52)`);
+  g.addColorStop(0.72,`rgba(${RGB},0.88)`);
+  g.addColorStop(1,   `rgba(${RGB},0.97)`);
+  ctx.fillStyle=g;ctx.fillRect(0,H*0.34,W,H*0.66);
 
   // Logo drawn after the wash so it stays crisp
   if(logo){
