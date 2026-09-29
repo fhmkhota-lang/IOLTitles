@@ -590,13 +590,16 @@ function drawLifestyleCard(ctx,p,W,H,isReel){
   g.addColorStop(1,   `rgba(${rgb},0.97)`);
   ctx.fillStyle=g;ctx.fillRect(0,H*0.34,W,H*0.66);
 
+  // Breaking banner, same as the newspaper titles
+  let bannerH=0; if(p.breaking) bannerH=drawBreakingBanner(ctx,p,W,isReel);
+
   // Logo, top-left, no chip
   const logo=LOGO_CACHE[p.pub];
   if(logo){
     const s=isReel?200:172, ar=logo.width/logo.height;
     const lw=ar>=1?s:s*ar, lh=ar>=1?s/ar:s;
     ctx.save();ctx.shadowColor='rgba(0,0,0,0.28)';ctx.shadowBlur=isReel?22:16;ctx.shadowOffsetY=3;
-    ctx.drawImage(logo,M,isReel?58:48,lw,lh);ctx.restore();
+    ctx.drawImage(logo,M,(isReel?58:48)+bannerH,lw,lh);ctx.restore();
   }
 
   // Footer domain, then build the text block upward from it

@@ -333,7 +333,7 @@ async function articleMeta(url, pub) {
   if (!title || title.length < 5) return null;
 
   let image = og('og:image');
-  if (image && image.includes('iol-prod.appspot.com')) image = image.replace(/=[swh]\d+.*$/, '') + '=w1200';
+  if (image) image = biggestImage(image);
 
   // Date comes from the slug, which is reliable across all the titles.
   const dm = url.match(/(20\d{2})-(\d{2})-(\d{2})/);
@@ -361,6 +361,31 @@ async function articleMeta(url, pub) {
     url,
     image: image || '',
   };
+}
+
+/* ── Image quality ────────────────────────────────────────────────────────
+   The IOL feeds hand out small renders: image-prod.iol.co.za/16x9/800 with an
+   inner resize as low as 430x242, landing at 800x450 — soft on a 1080 or 1920
+   canvas. That host renders much larger if asked, so ask: bump the size
+   segment to 2000 and scale the resize to 1920 wide, keeping its ratio.
+   Verified 800x450 -> 2000x1125. Unrecognised hosts are left alone, including
+   CapeTowner's (images.newsteam.io signs the width into the URL, so the size
+   the feed gives is the only size that exists).                             */
+function biggestImage(u){
+  if(!u) return u;
+  try{
+    let out = String(u).replace(/&amp;/g,'&');
+    if(out.includes('image-prod.iol.co.za')){
+      out = out.replace(/(image-prod\.iol\.co\.za\/[^/]+\/)\d+/, '$12000');
+      out = out.replace(/resize=(\d+)x(\d+)/, (m,w,h) => {
+        const W = 1920, H = Math.round((Number(h)/Number(w))*W);
+        return `resize=${W}x${H}`;
+      });
+      return out;
+    }
+    if(out.includes('iol-prod.appspot.com')) return out.replace(/=[swh]\d+.*$/,'') + '=w1600';
+    return out;
+  }catch(e){ return u; }
 }
 
 function artKey(link) {
@@ -437,7 +462,7 @@ function parseRSS(xml, pub) {
       pubDate:pub2,
       ts: Date.parse(pub2) || 0,
       url:link?link.trim():'https://www.iol.co.za/',
-      image:imgM?imgM[1]:''
+      image:imgM?biggestImage(imgM[1]):''
     });
   }
   return stories;
