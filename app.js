@@ -574,68 +574,95 @@ function drawTitleCard(ctx,p,W,H,isReel){
    rising from the bottom that the headline sits on in navy. Sentence case,
    no heavy bottom bar — just the domain.                                   */
 function drawLifestyleCard(ctx,p,W,H,isReel){
-  const cfg=pubCfg(p.pub), amber=cfg.color||'#F0A830', ink=cfg.ink||'#00183C';
-  const M=isReel?74:62;
+  const cfg=pubCfg(p.pub), ink=cfg.ink||'#00183C';
+  const M=isReel?74:62, RGB='240,168,48';
 
   // Photo, full bleed
   ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
   drawPhoto(ctx,p,W,H,isReel?p.reelImgX:p.sqImgX,isReel?p.reelImgY:p.sqImgY,(isReel?p.reelImgScale:p.sqImgScale)||1);
-
-  // Warm amber wash behind the text, fading up out of the bottom
-  const rgb='240,168,48';
-  const g=ctx.createLinearGradient(0,H*0.34,0,H);
-  g.addColorStop(0,   `rgba(${rgb},0)`);
-  g.addColorStop(0.42,`rgba(${rgb},0.52)`);
-  g.addColorStop(0.72,`rgba(${rgb},0.88)`);
-  g.addColorStop(1,   `rgba(${rgb},0.97)`);
-  ctx.fillStyle=g;ctx.fillRect(0,H*0.34,W,H*0.66);
 
   // Breaking banner, same as the newspaper titles
   let bannerH=0; if(p.breaking) bannerH=drawBreakingBanner(ctx,p,W,isReel);
 
   // Logo, top-left, no chip
   const logo=LOGO_CACHE[p.pub];
+  const logoTop=(isReel?58:48)+bannerH;
+  let logoBottom=logoTop;
+  if(logo){
+    const s=isReel?200:172, ar=logo.width/logo.height;
+    const lw=ar>=1?s:s*ar, lh=ar>=1?s/ar:s;
+    logoBottom=logoTop+lh;
+  }
+
+  // ── Lay the text out first, so the wash can follow it ──
+  const footY=H-(isReel?76:60);
+  const areaTop=logoBottom+(isReel?52:40);
+  const areaBottom=footY-(isReel?58:44);
+  const maxW=W-M*2;
+
+  const showKicker=!p.breaking && (p.kicker||'').trim().length>0;
+  const kfs=isReel?27:24, ktr=isReel?2.8:2.4;
+  const kickerH=showKicker?kfs*2.05:0, kickerGap=showKicker?(isReel?40:32):0;
+
+  let fs=isReel?74:64, lines, lineH, blockH;
+  const minFs=isReel?38:34;
+  while(true){
+    ctx.font=`700 ${fs}px Poppins,sans-serif`;
+    lines=wrapWords(ctx,(p.headline||'').split(/\s+/).filter(Boolean).map(t=>({text:t})),maxW);
+    lineH=Math.round(fs*1.18);
+    blockH=kickerH+kickerGap+lines.length*lineH;
+    if(blockH<=(areaBottom-areaTop)||fs<=minFs)break;
+    fs-=2;
+  }
+  const tp=isReel?p.reelTextPos:p.textPos;
+  let top=tp==='top'?areaTop:tp==='mid'?areaTop+((areaBottom-areaTop)-blockH)/2:areaBottom-blockH;
+  if(top<areaTop)top=areaTop;
+
+  // ── Amber wash: a soft band behind the text, wherever it sits, plus a
+  //    light wash at the foot so the domain stays readable. ──
+  const fade=isReel?300:240;
+  const bandTop=Math.max(0,top-fade), bandBot=Math.min(H,top+blockH+fade*0.5);
+  const band=ctx.createLinearGradient(0,bandTop,0,bandBot);
+  band.addColorStop(0,`rgba(${RGB},0)`);
+  band.addColorStop(0.38,`rgba(${RGB},0.80)`);
+  band.addColorStop(0.72,`rgba(${RGB},0.94)`);
+  band.addColorStop(1,`rgba(${RGB},0.72)`);
+  ctx.fillStyle=band;ctx.fillRect(0,bandTop,W,bandBot-bandTop);
+
+  const foot=ctx.createLinearGradient(0,H*0.70,0,H);
+  foot.addColorStop(0,`rgba(${RGB},0)`);
+  foot.addColorStop(1,`rgba(${RGB},0.95)`);
+  ctx.fillStyle=foot;ctx.fillRect(0,H*0.70,W,H*0.30);
+
+  // Logo drawn after the wash so it stays crisp
   if(logo){
     const s=isReel?200:172, ar=logo.width/logo.height;
     const lw=ar>=1?s:s*ar, lh=ar>=1?s/ar:s;
     ctx.save();ctx.shadowColor='rgba(0,0,0,0.28)';ctx.shadowBlur=isReel?22:16;ctx.shadowOffsetY=3;
-    ctx.drawImage(logo,M,(isReel?58:48)+bannerH,lw,lh);ctx.restore();
+    ctx.drawImage(logo,M,logoTop,lw,lh);ctx.restore();
   }
 
-  // Footer domain, then build the text block upward from it
-  const footY=H-(isReel?76:60);
+  // Footer domain
   ctx.save();
   ctx.font=`600 ${isReel?27:23}px Poppins,sans-serif`;ctx.textAlign='left';ctx.textBaseline='alphabetic';
   ctx.fillStyle='rgba(0,24,60,0.62)';
   drawTracked(ctx,(cfg.site||'').toUpperCase(),M,footY,isReel?2.8:2.4);
   ctx.restore();
 
-  // Headline — sentence case, navy, auto-shrunk to fit
-  const maxW=W-M*2;
-  let fs=isReel?74:64, lines, lineH;
-  for(let i=0;i<16;i++){
-    ctx.font=`700 ${fs}px Poppins,sans-serif`;
-    lines=wrapWords(ctx,(p.headline||'').split(/\s+/).filter(Boolean).map(t=>({text:t})),maxW);
-    lineH=Math.round(fs*1.18);
-    if(lines.length<=(isReel?6:4)||fs<=34)break;
-    fs=Math.round(fs*0.93);
-  }
-  const hlBottom=footY-(isReel?58:44);
-  let y=hlBottom-lines.length*lineH;
-
-  // Kicker pill above the headline, navy on amber
-  const kick=(p.kicker||'').trim();
-  if(kick){
-    const kfs=isReel?27:24, tr=isReel?2.8:2.4;
+  // Kicker pill, navy on amber
+  let y=top;
+  if(showKicker){
+    const kick=p.kicker.trim().toUpperCase();
     ctx.font=`700 ${kfs}px Poppins,sans-serif`;
-    const tw=measTracked(ctx,kick.toUpperCase(),tr), padX=kfs*0.95, kh=kfs*2.05;
-    const ky=y-(isReel?40:32)-kh;
-    ctx.fillStyle=ink;ctx.beginPath();ctx.roundRect(M,ky,tw+padX*2,kh,kh/2);ctx.fill();
+    const tw=measTracked(ctx,kick,ktr), padX=kfs*0.95;
+    ctx.fillStyle=ink;ctx.beginPath();ctx.roundRect(M,y,tw+padX*2,kickerH,kickerH/2);ctx.fill();
     ctx.fillStyle='#FFFFFF';ctx.textBaseline='middle';ctx.textAlign='left';
-    drawTracked(ctx,kick.toUpperCase(),M+padX,ky+kh/2+1,tr);
+    drawTracked(ctx,kick,M+padX,y+kickerH/2+1,ktr);
     ctx.textBaseline='alphabetic';
+    y+=kickerH+kickerGap;
   }
 
+  // Headline — sentence case, navy
   ctx.save();
   ctx.font=`700 ${fs}px Poppins,sans-serif`;ctx.textAlign='left';ctx.textBaseline='alphabetic';
   ctx.fillStyle=ink;
