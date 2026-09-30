@@ -89,16 +89,30 @@ const RW = 1080, RH = 1920;  // reel/story 1080x1920
 
 /* ── Logo image cache ── */
 const LOGO_CACHE = {};
-function loadLogo(key){
+// variant: 'colour' -> logos/<key>.png, 'white' -> logos/<key>-white.png.
+// Not every title has both (Daily Voice has no colour master, CapeTowner no
+// white one), so a missing variant quietly falls back to the other.
+function logoFile(key,variant){ return 'logos/'+key+(variant==='white'?'-white':'')+'.png'; }
+function loadLogo(key,variant){
+  variant = variant==='white' ? 'white' : 'colour';
+  const id = key+':'+variant;
   return new Promise(res=>{
-    if(LOGO_CACHE[key]) return res(LOGO_CACHE[key]);
+    if(LOGO_CACHE[id]!==undefined) return res(LOGO_CACHE[id]);
     const img=new Image();
-    img.onload=()=>{LOGO_CACHE[key]=img;res(img);};
-    img.onerror=()=>res(null);
-    img.src='logos/'+key+'.png';
+    img.onload=()=>{LOGO_CACHE[id]=img;res(img);};
+    img.onerror=()=>{
+      const other = variant==='white' ? 'colour' : 'white';
+      const oid = key+':'+other;
+      if(LOGO_CACHE[oid]){ LOGO_CACHE[id]=LOGO_CACHE[oid]; return res(LOGO_CACHE[id]); }
+      const alt=new Image();
+      alt.onload=()=>{LOGO_CACHE[id]=alt;LOGO_CACHE[oid]=alt;res(alt);};
+      alt.onerror=()=>{LOGO_CACHE[id]=null;res(null);};
+      alt.src=logoFile(key,other);
+    };
+    img.src=logoFile(key,variant);
   });
 }
-function preloadAllLogos(){ PUBLICATIONS.forEach(p=>loadLogo(p.key)); }
+function preloadAllLogos(){ PUBLICATIONS.forEach(p=>{loadLogo(p.key,'colour');loadLogo(p.key,'white');}); }
 
 /* ── State ── */
 let allStories = [], curPub = 'capeargus', curSearch = '', visible = PAGE_SZ;
@@ -107,7 +121,7 @@ let allStories = [], curPub = 'capeargus', curSearch = '', visible = PAGE_SZ;
 let d = {
   type:'single', pub:'capeargus', kicker:'', headline:'',
   headlineColor:'#FFFFFF', kickerColor:'#FFFFFF', upper:true,
-  imgUrl:'', imgEl:null, textPos:'bot', reelTextPos:'bot',
+  imgUrl:'', imgEl:null, textPos:'bot', reelTextPos:'bot', logoVariant:'colour',
   storyUrl:'', shortUrl:'', breaking:false, excerpt:'', source:'',
   slides:[], slide:0, points:[],
   sqImgX:0, sqImgY:0, sqImgScale:1,
@@ -330,6 +344,7 @@ async function reloadImg(){
 }
 $id('pos-grid')?.addEventListener('click',e=>{const b=e.target.closest('.pos-btn');if(!b)return;$id('pos-grid').querySelectorAll('.pos-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');d.textPos=b.dataset.pos;renderBoth();});
 $id('reel-pos-grid')?.addEventListener('click',e=>{const b=e.target.closest('.pos-btn');if(!b)return;$id('reel-pos-grid').querySelectorAll('.pos-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');d.reelTextPos=b.dataset.pos;renderBoth();});
+$id('logo-variant-grid')?.addEventListener('click',e=>{const b=e.target.closest('.pos-btn');if(!b)return;$id('logo-variant-grid').querySelectorAll('.pos-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');d.logoVariant=b.dataset.logo;loadLogo(d.pub,d.logoVariant).then(renderBoth);});
 
 /* Card type toggle */
 $id('type-toggle')?.addEventListener('click',e=>{
@@ -486,14 +501,15 @@ function drawBottomBar(ctx,p,W,H,isReel){
 }
 
 function drawLogoChip(ctx,p,x,y,isReel){
-  const pub=pubCfg(p.pub), logo=LOGO_CACHE[p.pub];
+  const pub=pubCfg(p.pub), white=p.logoVariant==='white', logo=LOGO_CACHE[p.pub+':'+(white?'white':'colour')];
   const pad=isReel?18:15, maxH=isReel?112:94, maxW=(isReel?RW:SQ)*0.58;
   let lw=maxW,lh=maxH;
   if(logo){const sc=Math.min(maxW/logo.width,maxH/logo.height);lw=logo.width*sc;lh=logo.height*sc;}
   const chipW=lw+2*pad, chipH=lh+2*pad, r=Math.min(12,chipH/4);
   ctx.save();
   ctx.shadowColor='rgba(0,0,0,0.35)';ctx.shadowBlur=isReel?18:12;ctx.shadowOffsetY=3;
-  ctx.fillStyle=pub.logoBox==='brand'?pub.color:'#FFFFFF';
+  // A white logo would vanish on a white chip, so back it with the brand colour.
+  ctx.fillStyle=(white||pub.logoBox==='brand')?pub.color:'#FFFFFF';
   roundRect(ctx,x,y,chipW,chipH,r);ctx.fill();
   ctx.restore();
   if(logo){ctx.save();ctx.imageSmoothingQuality='high';ctx.drawImage(logo,x+pad,y+pad,lw,lh);ctx.restore();}
@@ -585,7 +601,7 @@ function drawLifestyleCard(ctx,p,W,H,isReel){
   let bannerH=0; if(p.breaking) bannerH=drawBreakingBanner(ctx,p,W,isReel);
 
   // Logo, top-left, no chip
-  const logo=LOGO_CACHE[p.pub];
+  const logo=LOGO_CACHE[p.pub+':'+(p.logoVariant==='white'?'white':'colour')];
   const logoTop=(isReel?58:48)+bannerH;
   let logoBottom=logoTop;
   if(logo){
@@ -698,10 +714,11 @@ function drawInfographic(ctx,p,W,H,isReel){
 }
 
 async function renderBoth(){
-  await loadLogo(d.pub);
+  await loadLogo(d.pub,d.logoVariant);
   const sl=curSlide(), isSlide=sl!==d;
   const p={
     pub:d.pub,
+    logoVariant:d.logoVariant||'colour',
     kicker: isSlide?(sl.kicker??''):(sl.kicker||d.kicker||''),
     headline: isSlide?(sl.headline??''):(sl.headline||d.headline||''),
     headlineColor: (isSlide?sl.headlineColor:(sl.headlineColor||d.headlineColor))||'#FFFFFF',
