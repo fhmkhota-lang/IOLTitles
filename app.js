@@ -38,6 +38,8 @@ const PUBLICATIONS = [
   {key:'businessreport',   name:'Business Report',         color:'#204090', site:'businessreport.co.za',       city:'South Africa', region:'Business',      tagline:"SA's Business Voice"},
   // Lifestyle title — its own casual card style (see drawLifestyleCard).
   {key:'capetowner',       name:'CapeTowner',              color:'#F0A830', site:'capetowner.co.za',           city:'Cape Town',    region:'Western Cape',  tagline:'Your City, Your Vibe', style:'lifestyle', ink:'#00183C'},
+  // Community title — blue panel card (see drawAthloneCard).
+  {key:'athlonenews',      name:'Athlone News',            color:'#0078BE', site:'www.athlonenews.co.za',      city:'Athlone',      region:'Cape Town',     tagline:'Your Community, Your News', style:'panel', dark:'#0058A0', darker:'#003870'},
 ];
 const PUB = {}; PUBLICATIONS.forEach(p => PUB[p.key] = p);
 function pubCfg(key){ return PUB[key] || PUBLICATIONS[0]; }
@@ -572,7 +574,9 @@ function drawTextBlock(ctx,p,W,H,isReel,areaTop,areaBottom){
 
 function drawTitleCard(ctx,p,W,H,isReel){
   // Lifestyle titles get a softer, cleaner card of their own.
-  if(pubCfg(p.pub).style==='lifestyle') return drawLifestyleCard(ctx,p,W,H,isReel);
+  const st=pubCfg(p.pub).style;
+  if(st==='lifestyle') return drawLifestyleCard(ctx,p,W,H,isReel);
+  if(st==='panel') return drawPanelCard(ctx,p,W,H,isReel);
   const imgX=isReel?p.reelImgX:p.sqImgX, imgY=isReel?p.reelImgY:p.sqImgY, sc=(isReel?p.reelImgScale:p.sqImgScale)||1;
   drawPhotoAndOverlay(ctx,p,W,H,imgX,imgY,sc);
   const barH=drawBottomBar(ctx,p,W,H,isReel);
@@ -589,6 +593,105 @@ function drawTitleCard(ctx,p,W,H,isReel){
    round logo sitting top-left with no chip behind it, and a warm amber wash
    rising from the bottom that the headline sits on in navy. Sentence case,
    no heavy bottom bar — just the domain.                                   */
+/* ── Panel card (Athlone News) ────────────────────────────────────────────
+   Photo on top, solid brand panel beneath carrying the headline, a white
+   READ MORE button and the site address. Two darker diagonal wedges sit in
+   the bottom-right of the panel. The logo already has its own blue box, so
+   it's drawn straight onto the photo with no chip.                         */
+function drawPanelCard(ctx,p,W,H,isReel){
+  const cfg=pubCfg(p.pub);
+  const blue=cfg.color||'#0078BE', dark=cfg.dark||'#0058A0', darker=cfg.darker||'#003870';
+  const M=isReel?70:58;
+
+  // Panel occupies the lower third (square) / quarter (reel)
+  const panelTop=Math.round(H*(isReel?0.70:0.675));
+  const panelH=H-panelTop;
+
+  // Photo fills everything above the panel
+  ctx.fillStyle='#111';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.beginPath();ctx.rect(0,0,W,panelTop);ctx.clip();
+  drawPhoto(ctx,p,W,panelTop,isReel?p.reelImgX:p.sqImgX,isReel?p.reelImgY:p.sqImgY,(isReel?p.reelImgScale:p.sqImgScale)||1);
+  ctx.restore();
+
+  // Panel
+  ctx.fillStyle=blue;ctx.fillRect(0,panelTop,W,panelH);
+
+  // Diagonal wedges, bottom-right
+  ctx.save();ctx.beginPath();ctx.rect(0,panelTop,W,panelH);ctx.clip();
+  ctx.fillStyle=dark;
+  ctx.beginPath();ctx.moveTo(W*0.74,H);ctx.lineTo(W,panelTop+panelH*0.18);ctx.lineTo(W,H);ctx.closePath();ctx.fill();
+  ctx.fillStyle=darker;
+  ctx.beginPath();ctx.moveTo(W*0.88,H);ctx.lineTo(W,panelTop+panelH*0.52);ctx.lineTo(W,H);ctx.closePath();ctx.fill();
+  ctx.restore();
+
+  // Breaking banner, then the logo on the photo
+  let bannerH=0; if(p.breaking) bannerH=drawBreakingBanner(ctx,p,W,isReel);
+  const logo=LOGO_CACHE[p.pub+':'+(p.logoVariant==='white'?'white':'colour')];
+  if(logo){
+    const maxW=W*(isReel?0.46:0.42), maxH=isReel?150:128;
+    const sc=Math.min(maxW/logo.width,maxH/logo.height);
+    ctx.save();ctx.imageSmoothingQuality='high';
+    ctx.drawImage(logo,M,(isReel?54:44)+bannerH,logo.width*sc,logo.height*sc);
+    ctx.restore();
+  }
+
+  // Panel contents, laid out from the top of the panel down
+  const innerW=W-M*2;
+  const btnH=isReel?72:60, btnGap=isReel?28:22;
+  const urlFs=isReel?28:24, urlGap=isReel?20:16;
+  const padTop=isReel?44:34, padBot=isReel?36:30;
+  const avail=panelH-padTop-padBot-btnH-btnGap-urlFs-urlGap;
+
+  let fs=isReel?74:66, lines, lineH;
+  while(true){
+    ctx.font=`800 ${fs}px Poppins,sans-serif`;
+    lines=wrapWords(ctx,(p.headline||'').split(/\s+/).filter(Boolean).map(t=>({text:t})),innerW);
+    lineH=Math.round(fs*1.12);
+    if(lines.length*lineH<=avail||fs<=30)break;
+    fs-=2;
+  }
+
+  let y=panelTop+padTop;
+  ctx.save();
+  ctx.font=`800 ${fs}px Poppins,sans-serif`;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#FFFFFF';
+  const spaceW=ctx.measureText(' ').width;
+  lines.forEach(line=>{
+    let cx=M;
+    line.forEach(word=>{ctx.fillText(word.text,cx,y+fs);cx+=ctx.measureText(word.text).width+spaceW;});
+    y+=lineH;
+  });
+  ctx.restore();
+
+  // READ MORE button
+  y+=btnGap;
+  const label='READ MORE', bfs=isReel?30:26, btr=isReel?3:2.5;
+  ctx.save();
+  ctx.font=`800 ${bfs}px Poppins,sans-serif`;
+  const tw=measTracked(ctx,label,btr);
+  const arrowW=isReel?54:46, arrowGap=isReel?30:26, bpad=isReel?34:28;
+  const btnW=tw+arrowW+arrowGap+bpad*2;
+  ctx.fillStyle='#FFFFFF';roundRect(ctx,M,y,btnW,btnH,isReel?8:6);ctx.fill();
+  ctx.fillStyle=blue;ctx.textBaseline='middle';ctx.textAlign='left';
+  const cy=y+btnH/2+1;
+  drawTracked(ctx,label,M+bpad,cy,btr);
+  // arrow
+  const ax=M+bpad+tw+arrowGap, ay=cy;
+  ctx.strokeStyle=blue;ctx.lineWidth=isReel?5:4;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+arrowW,ay);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(ax+arrowW-(isReel?18:15),ay-(isReel?14:12));ctx.lineTo(ax+arrowW,ay);
+  ctx.lineTo(ax+arrowW-(isReel?18:15),ay+(isReel?14:12));ctx.stroke();
+  ctx.restore();
+
+  // Site address
+  y+=btnH+urlGap;
+  ctx.save();
+  ctx.font=`500 ${urlFs}px Poppins,sans-serif`;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='rgba(255,255,255,0.95)';
+  ctx.fillText((cfg.site||'').toLowerCase(),M,y+urlFs);
+  ctx.restore();
+}
+
 function drawLifestyleCard(ctx,p,W,H,isReel){
   const cfg=pubCfg(p.pub), ink=cfg.ink||'#00183C';
   const M=isReel?74:62, RGB='240,168,48';

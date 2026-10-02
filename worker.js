@@ -30,6 +30,7 @@ const PUBS = {
   businessreport:   ['business-report'],
   // Lifestyle title. rss.iol.io has no slug for it (500s), so its own feed only.
   capetowner:       [],
+  athlonenews:      [],
 };
 // Friendly channel label per publication (used as fallback source).
 const LABELS = {
@@ -39,7 +40,7 @@ const LABELS = {
   saturdaystar:'Saturday Star', sundaytribune:'Sunday Tribune',
   sundayindependent:'Sunday Independent', thepost:'The Post',
   weekendargus:'Weekend Argus', businessreport:'Business Report',
-  capetowner:'CapeTowner',
+  capetowner:'CapeTowner', athlonenews:'Athlone News',
 };
 // Each title has its OWN website + RSS feed (title-specific content). These are
 // the source of truth. The old iol.co.za/rss/extended/iol/<slug> feeds returned
@@ -68,6 +69,7 @@ const FEED_URLS = {
   weekendargus:     ['https://rss.iol.io/iol/weekend-argus',    'https://weekendargus.co.za/rss/'],
   businessreport:   ['https://rss.iol.io/iol/business-report',  'https://businessreport.co.za/rss/'],
   capetowner:       ['https://capetowner.co.za/rss'],
+  athlonenews:      ['https://athlonenews.co.za/rss'],
 };
 // Substrings that mark a story as belonging to THIS title (its own domain, or
 // its section path on iol.co.za). Used to float a title's own stories above the
@@ -89,6 +91,7 @@ const TITLE_MARKERS = {
   weekendargus:     ['weekendargus.co.za','/weekend-argus/','/weekendargus/'],
   businessreport:   ['businessreport.co.za','/business-report/','/business/'],
   capetowner:       ['capetowner.co.za','/capetowner/'],
+  athlonenews:      ['athlonenews.co.za','/athlone/'],
 };
 
 export default {
