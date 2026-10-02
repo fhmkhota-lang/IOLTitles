@@ -80,6 +80,36 @@ async function markDoneInSupabase(id, headline) {
 
 /* ── Small helpers ── */
 function relTime(s){if(!s)return'Today';try{const m=Math.floor((Date.now()-new Date(s))/60000);if(m<1)return'Just now';if(m<60)return m+'m ago';if(m<1440)return Math.floor(m/60)+'h ago';return'Today';}catch{return'Today';}}
+/* ── Text hygiene ─────────────────────────────────────────────────────────
+   Headlines reach us from several places (RSS, og: tags, From URL, paste),
+   and each can carry a different flavour of broken apostrophe: raw HTML
+   entities (&#39; &#x27; &rsquo;), UTF-8 read as Latin-1 (â€™), or stray
+   Windows-1252 bytes (\u0092). All of them show up on a card as junk around
+   the apostrophe, so everything gets cleaned on the way in.                */
+const ENT = {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' ',
+  rsquo:'\u2019',lsquo:'\u2018',ldquo:'\u201C',rdquo:'\u201D',
+  ndash:'\u2013',mdash:'\u2014',hellip:'\u2026',middot:'\u00B7'};
+const MOJI = [['\u00e2\u20ac\u2122','\u2019'],['\u00e2\u20ac\u02dc','\u2018'],
+  ['\u00e2\u20ac\u0153','\u201C'],['\u00e2\u20ac\u009d','\u201D'],['\u00e2\u20ac\u009c','\u201C'],
+  ['\u00e2\u20ac\u201c','\u2013'],['\u00e2\u20ac\u201d','\u2014'],['\u00e2\u20ac\u00a6','\u2026'],
+  ['\u00e2\u20ac','\u201D'],['\u00c2\u00a0',' '],['\u00c2','']];
+function fixText(s){
+  s=String(s==null?'':s);
+  // entities can be double-encoded (&amp;#39;), so decode twice
+  for(let i=0;i<2;i++){
+    s=s.replace(/&([a-zA-Z]+);/g,(m,n)=>ENT[n.toLowerCase()]!==undefined?ENT[n.toLowerCase()]:m)
+       .replace(/&#x([0-9a-fA-F]+);/g,(m,h)=>{try{return String.fromCodePoint(parseInt(h,16));}catch(e){return m;}})
+       .replace(/&#(\d+);/g,(m,n)=>{try{return String.fromCodePoint(parseInt(n,10));}catch(e){return m;}});
+  }
+  for(const [bad,good] of MOJI) s=s.split(bad).join(good);
+  // stray Windows-1252 code points that survived a bad decode
+  s=s.replace(/\u0092/g,'\u2019').replace(/\u0091/g,'\u2018')
+     .replace(/\u0093/g,'\u201C').replace(/\u0094/g,'\u201D')
+     .replace(/\u0096/g,'\u2013').replace(/\u0097/g,'\u2014').replace(/\u0085/g,'\u2026')
+     .replace(/\uFFFD/g,'');
+  return s.replace(/\s+/g,' ').trim();
+}
+
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
 function $id(id){return document.getElementById(id);}
 function gv(id){const e=$id(id);return e?e.value:'';}
@@ -165,11 +195,11 @@ async function loadStories(refresh){
     const res=await fetch(WORKER+'/'+curPub+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)});
     const data=await res.json();
     if(!data.ok||!data.stories||data.stories.length<2)throw new Error('empty');
-    allStories=data.stories.map((s,i)=>({id:s.url||(curPub+'-'+i),cat:s.category||'news',headline:s.headline,excerpt:s.excerpt||'',source:s.source||p.name,time:relTime(s.pubDate),url:s.url||'',image:s.image||''}));
+    allStories=data.stories.map((s,i)=>({id:s.url||(curPub+'-'+i),cat:s.category||'news',headline:fixText(s.headline),excerpt:fixText(s.excerpt),source:fixText(s.source)||p.name,time:relTime(s.pubDate),url:s.url||'',image:s.image||''}));
     if(status){status.textContent=allStories.length+' stories · live';}
   }catch(_){
     const pre=(window.PRELOADED&&window.PRELOADED[curPub])||[];
-    allStories=pre.map((s,i)=>({id:s.url||(curPub+'-'+i),cat:'news',headline:s.headline,excerpt:s.excerpt||'',source:p.name,time:'',url:s.url||'',image:s.image||''}));
+    allStories=pre.map((s,i)=>({id:s.url||(curPub+'-'+i),cat:'news',headline:fixText(s.headline),excerpt:fixText(s.excerpt),source:p.name,time:'',url:s.url||'',image:s.image||''}));
     if(status){status.textContent=allStories.length?(allStories.length+' stories · sample'):'Feed live after deploy';}
   }
   renderFeed();
@@ -233,7 +263,7 @@ async function buildCardFromUrl(){
     else if(/\/travel\//.test(urlVal))cat='travel';
     else if(/\/lifestyle\//.test(urlVal))cat='lifestyle';
     else if(/\/entertainment\//.test(urlVal))cat='entertainment';
-    const story={id:'url-'+Date.now(),cat,headline:(data&&data.title)||'Headline not found — edit it',excerpt:(data&&data.desc)||'',source:pubCfg(curPub).name,image:(data&&data.url)||'',url:urlVal,time:''};
+    const story={id:'url-'+Date.now(),cat,headline:fixText(data&&data.title)||'Headline not found — edit it',excerpt:fixText(data&&data.desc),source:pubCfg(curPub).name,image:(data&&data.url)||'',url:urlVal,time:''};
     const panel=$id('from-url-panel');if(panel)panel.style.display='none';
     const inp=$id('from-url-input');if(inp)inp.value='';
     if(status)status.textContent='';
@@ -252,7 +282,7 @@ function buildPubSelect(){
 async function openDesigner(story){
   d.pub=curPub;
   d.kicker=story.kicker||autoKicker(story.cat);
-  d.headline=story.headline||''; d.imgUrl=story.image||''; d.excerpt=story.excerpt||'';
+  d.headline=fixText(story.headline); d.imgUrl=story.image||''; d.excerpt=fixText(story.excerpt);
   d.storyUrl=story.url||''; d.shortUrl=''; d.source=story.source||pubCfg(d.pub).name;
   d.sqImgX=0;d.sqImgY=0;d.sqImgScale=1; d.reelImgX=0;d.reelImgY=0;d.reelImgScale=1;
   d.textPos='bot'; d.reelTextPos='bot'; d.type='single'; d.slides=[]; d.slide=0;
@@ -308,7 +338,7 @@ $id('ctrl-pub')?.addEventListener('change',function(){
   $id(id)?.addEventListener('input',function(){
     const sl=curSlide();
     if(id==='ctrl-kicker'){sl.kicker=this.value;if(sl===d)d.kicker=this.value;}
-    if(id==='ctrl-headline'){sl.headline=this.value;if(sl===d)d.headline=this.value;buildShareText();}
+    if(id==='ctrl-headline'){const v=/[&\u0085\u0091-\u0097]|\u00e2\u20ac/.test(this.value)?fixText(this.value):this.value;if(v!==this.value)this.value=v;sl.headline=v;if(sl===d)d.headline=v;buildShareText();}
     renderBoth();
     if(d.type==='carousel')renderCarouselPages();
   });

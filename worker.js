@@ -490,6 +490,17 @@ function decodeEntities(h){
         try { return String.fromCodePoint(parseInt(n, 10)); } catch(e){ return _; }
       });
   // Run &amp; last as well, to catch double-encoded input (&amp;#x27;).
-  return s.replace(/&amp;/g,'&');
+  s = s.replace(/&amp;/g,'&');
+  // Repair UTF-8 that was read as Latin-1 somewhere upstream, plus stray
+  // Windows-1252 bytes. Both render as junk around apostrophes on a card.
+  const MOJI = [['\u00e2\u20ac\u2122','\u2019'],['\u00e2\u20ac\u02dc','\u2018'],
+    ['\u00e2\u20ac\u0153','\u201C'],['\u00e2\u20ac\u009d','\u201D'],
+    ['\u00e2\u20ac\u201c','\u2013'],['\u00e2\u20ac\u201d','\u2014'],
+    ['\u00e2\u20ac\u00a6','\u2026'],['\u00c2\u00a0',' '],['\u00c2','']];
+  for (const [bad,good] of MOJI) s = s.split(bad).join(good);
+  return s.replace(/\u0092/g,'\u2019').replace(/\u0091/g,'\u2018')
+          .replace(/\u0093/g,'\u201C').replace(/\u0094/g,'\u201D')
+          .replace(/\u0096/g,'\u2013').replace(/\u0097/g,'\u2014')
+          .replace(/\u0085/g,'\u2026').replace(/\uFFFD/g,'');
 }
 function j(data,status=200){return new Response(JSON.stringify(data),{status,headers:{...CORS,'Content-Type':'application/json','Cache-Control':'no-store, max-age=0'}});}
