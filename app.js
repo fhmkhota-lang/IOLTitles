@@ -62,8 +62,9 @@ async function loadDoneFromSupabase() {
     // Supabase caps a response at 1000 rows. Without an explicit order that
     // was returning the OLDEST 1000, so once the table passed 1000 title rows
     // the newest ticks fell off the end and stopped showing. Newest first, and
-    // only the last 60 days, which keeps it well inside the cap.
-    const since = new Date(Date.now() - 60*24*60*60*1000).toISOString();
+    // only the last 10 days. Stories older than that have long dropped out
+    // of the feeds, so their ticks are never needed on screen.
+    const since = new Date(Date.now() - 10*24*60*60*1000).toISOString();
     const res = await fetch(`${SUPA_URL}/rest/v1/done_stories?select=id&id=like.${DONE_PREFIX}*&marked_at=gte.${since}&order=marked_at.desc&limit=1000`, {
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }
     });
