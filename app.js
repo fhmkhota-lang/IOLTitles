@@ -885,17 +885,3 @@ buildPubPills();
 buildPubSelect();
 loadStories(false);
 setInterval(loadDoneFromSupabase, 30000);
-
-/* ── Visit logging ────────────────────────────────────────────────────────
-   One ping per page load. The worker records IP/city/country (the browser
-   can't see those). Silent on failure — never blocks the tool.           */
-function logVisit(){
-  try{
-    fetch('https://ioltitles.faheem-khota.workers.dev/visit',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      keepalive:true,
-      body:JSON.stringify({tool:'Title Cards',pub:curPub||'',name:localStorage.getItem('iol_titles_user')||''})
-    }).catch(()=>{});
-  }catch(e){}
-}
-logVisit();
