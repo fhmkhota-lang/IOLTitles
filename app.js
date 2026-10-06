@@ -59,11 +59,18 @@ let doneIds = new Set();
 
 async function loadDoneFromSupabase() {
   try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/done_stories?select=id&id=like.${DONE_PREFIX}*`, {
+    // Supabase caps a response at 1000 rows. Without an explicit order that
+    // was returning the OLDEST 1000, so once the table passed 1000 title rows
+    // the newest ticks fell off the end and stopped showing. Newest first, and
+    // only the last 60 days, which keeps it well inside the cap.
+    const since = new Date(Date.now() - 60*24*60*60*1000).toISOString();
+    const res = await fetch(`${SUPA_URL}/rest/v1/done_stories?select=id&id=like.${DONE_PREFIX}*&marked_at=gte.${since}&order=marked_at.desc&limit=1000`, {
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }
     });
     const rows = await res.json();
-    if (Array.isArray(rows)) { doneIds = new Set(rows.map(r => r.id)); renderFeed(); }
+    // Merge rather than replace, so a tick added locally in this session can't
+    // be wiped by a refresh that hasn't caught up yet.
+    if (Array.isArray(rows)) { rows.forEach(r => doneIds.add(r.id)); renderFeed(); }
   } catch(e) { console.warn('Supabase load:', e); }
 }
 async function markDoneInSupabase(id, headline) {
