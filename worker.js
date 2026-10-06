@@ -8,6 +8,10 @@
  * POST /claude           → Anthropic API proxy (ANTHROPIC_KEY secret)
  */
 const CORS = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'};
+// Supabase, for the visits log. The anon key is public by design; the visits
+// table is insert-only under RLS so it can never read visitor data back.
+const SUPA_URL = 'https://asipandmcgagpswsgbtr.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzaXBhbmRtY2dhZ3Bzd3NnYnRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyNTc0MzEsImV4cCI6MjA5NzgzMzQzMX0.yc6mSP_EXe8g1w61r667SCoQsSeZILSkZ-BfCka6VDI';
 
 // One confirmed iol.co.za slug per title (single request each — firing many
 // slug variants in parallel tripped IOL's rate limit, error 1015). Daily Voice
@@ -99,6 +103,35 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, {headers:CORS});
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\//,'').toLowerCase().trim();
+
+    /* ── visit logging ───────────────────────────────────────────────────
+       Both tools POST here once per page load. The worker is the only place
+       that sees the real client IP and Cloudflare's geo data, so the record
+       is built here rather than in the browser. Fire-and-forget: a logging
+       failure must never affect the app.                                   */
+    if (path === 'visit' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(()=>({}));
+        const cf = request.cf || {};
+        const row = {
+          tool: String(body.tool||'').slice(0,40),
+          pub: String(body.pub||'').slice(0,40),
+          user_name: String(body.name||'').slice(0,80),
+          ip: request.headers.get('CF-Connecting-IP') || '',
+          country: cf.country || '',
+          city: cf.city || '',
+          region: cf.region || '',
+          user_agent: (request.headers.get('User-Agent')||'').slice(0,300),
+          referer: (request.headers.get('Referer')||'').slice(0,300)
+        };
+        await fetch(SUPA_URL+'/rest/v1/visits',{
+          method:'POST',
+          headers:{apikey:SUPA_KEY,Authorization:'Bearer '+SUPA_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},
+          body:JSON.stringify(row)
+        });
+      } catch(e){ /* never block the app */ }
+      return j({ok:true});
+    }
 
     if (path === 'claude' && request.method === 'POST') {
       const key = env.ANTHROPIC_KEY;
