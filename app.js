@@ -22,7 +22,7 @@ const PAGE_SZ = 12;
 /* ── Publication registry (order = picker order) ── */
 const PUBLICATIONS = [
   {key:'capeargus',        name:'Cape Argus',              color:'#E00000', site:'capeargus.co.za',            city:'Cape Town',    region:'Western Cape',  tagline:'Your City, Your Paper'},
-  {key:'capetimes',        name:'Cape Times',              color:'#003DA5', site:'capetimes.co.za',            city:'Cape Town',    region:'Western Cape',  tagline:"Cape Town's Morning Paper", logoBox:'brand'},
+  {key:'capetimes',        name:'Cape Times',              color:'#2A2A85', site:'capetimes.co.za',            city:'Cape Town',    region:'Western Cape',  tagline:"Cape Town's Morning Paper", logoBox:'brand'},
   {key:'dailyvoice',       name:'Daily Voice',             color:'#C00010', site:'dailyvoice.co.za',           city:'Cape Town',    region:'Western Cape',  tagline:"Cape Town's Boldest Voice"},
   {key:'dailynews',        name:'Daily News',              color:'#D02020', site:'dailynews.co.za',            city:'Durban',       region:'KwaZulu-Natal', tagline:"Durban's Daily News"},
   {key:'ios',              name:'Independent on Saturday', color:'#303080', site:'independentonsaturday.co.za',city:'Durban',       region:'KwaZulu-Natal', tagline:'Your Saturday Read'},
