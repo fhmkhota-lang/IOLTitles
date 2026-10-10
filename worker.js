@@ -237,7 +237,11 @@ async function fetchPublication(pub) {
   // channel while their site is full of current articles. When that happens,
   // read the homepage instead. Only fires when the feed is thin, so titles
   // with healthy feeds are untouched.
-  const FRESH_MS = 1000 * 60 * 60 * 72; // 72h
+  // IOL's per-title feeds sometimes lag the title's own site by a day — The
+  // Post had 44 stories live on site while its feed stopped the previous
+  // evening. 10h means a feed that has gone quiet overnight gets topped up
+  // from the homepage, while a healthy feed is still used on its own.
+  const FRESH_MS = 1000 * 60 * 60 * 10; // 10h
   const newest = uniq.length ? (uniq[0].ts || 0) : 0;
   const stale = !newest || (Date.now() - newest) > FRESH_MS;
   if (uniq.length < 5 || stale) {
@@ -259,12 +263,18 @@ async function fetchPublication(pub) {
 
 // Homepage of each title, derived from its own feed URL.
 function homepageFor(pub) {
-  const u = (FEED_URLS[pub] || [])[0];
-  if (!u) return '';
-  // The Star and Saturday Star list a www. feed URL, but www. 301-redirects to
-  // the apex domain. Every article fetch then costs two subrequests, which blew
-  // the per-request budget and returned an almost-empty feed. Use apex directly.
-  try { return new URL(u).origin.replace('://www.', '://') + '/'; } catch (e) { return ''; }
+  // Must be the title's OWN site. Most titles now take their feed from
+  // rss.iol.io, so deriving the origin from FEED_URLS[0] would scrape the feed
+  // host instead of the masthead's homepage. Prefer the title's own feed URL,
+  // then fall back to the domain in TITLE_MARKERS.
+  const urls = FEED_URLS[pub] || [];
+  const own = urls.find(u => !/rss\.iol\.io|iol\.co\.za/i.test(u));
+  if (own) {
+    try { return new URL(own).origin.replace('://www.', '://') + '/'; } catch (e) {}
+  }
+  const marker = (TITLE_MARKERS[pub] || []).find(m => /\.co\.za$/i.test(m));
+  if (marker) return 'https://' + marker.replace(/^www\./i, '') + '/';
+  return '';
 }
 
 // Pull dated article links off a title's homepage, then read og: tags from
