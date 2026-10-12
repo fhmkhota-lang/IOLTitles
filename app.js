@@ -8,7 +8,7 @@
    /shorten, /fullimage and /claude all work. Publication feeds fall back to
    the baked PRELOADED samples until the new worker is deployed.
    Media/feeds served by the dedicated ioltitles worker.
-   AI_WORKER handles /claude (AI infographic) via the ioltester worker, which
+   AI_WORKER handles /claude (AI infographic) on this tool's own worker, which
    already holds the ANTHROPIC_KEY secret — avoids duplicating the key. */
 // On GitHub Pages the feed API lives on the separate, open ioltitles worker.
 // On the Cloudflare Access-protected build the site is served BY the worker,
@@ -16,7 +16,9 @@
 const WORKER = /github\.io$|^localhost$|^127\./.test(location.hostname)
   ? 'https://ioltitles.faheem-khota.workers.dev'
   : location.origin;
-const AI_WORKER = 'https://ioltester.fhmkhota.workers.dev';
+// AI (/claude) now runs on this tool's own worker, so nothing depends on the
+// retired ioltester worker. Needs an ANTHROPIC_KEY secret on that worker.
+const AI_WORKER = WORKER;
 const PAGE_SZ = 12;
 
 /* ── Publication registry (order = picker order) ── */
